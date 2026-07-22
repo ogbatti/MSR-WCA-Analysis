@@ -21,7 +21,10 @@ class ActivityInfoClient:
         self.timeout = timeout
         if not self.token:
             raise ValueError(
-                "ACTIVITYINFO_TOKEN is missing. Copy .env.example to .env and set your token."
+                "ACTIVITYINFO_TOKEN is missing. "
+                "Local: copy .env.example to .env and set your token. "
+                "Streamlit Cloud: App settings → Secrets → "
+                'ACTIVITYINFO_TOKEN = "your_token".'
             )
 
     @property

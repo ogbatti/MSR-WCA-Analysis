@@ -1,6 +1,7 @@
 # Environment
 .env
 .env.local
+.streamlit/secrets.toml
 *.pyc
 __pycache__/
 .pytest_cache/

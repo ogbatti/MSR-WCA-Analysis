@@ -46,6 +46,18 @@ py -3 -m streamlit run app.py --server.port 8502
 ```
 First load pulls ~175k population rows from ActivityInfo and caches them as `data/cache/population.parquet`. Use the sidebar **Refresh API data** button to force a reload.
 
+## Streamlit Community Cloud
+
+1. Deploy from GitHub repo `ogbatti/MSR-WCA-Analysis` (`app.py`, branch `master`).
+2. In **App settings → Secrets**, add:
+
+```toml
+ACTIVITYINFO_TOKEN = "your_activityinfo_token"
+ACTIVITYINFO_DATABASE_ID = "c6whbx9kv7zwnux3"
+```
+
+The `.env` file is local-only and is not published to GitHub.
+
 ## Data notes
 
 | Form | Role |

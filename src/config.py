@@ -9,11 +9,28 @@ from dotenv import load_dotenv
 ROOT = Path(__file__).resolve().parents[1]
 load_dotenv(ROOT / ".env")
 
-ACTIVITYINFO_TOKEN = os.getenv("ACTIVITYINFO_TOKEN", "")
-ACTIVITYINFO_BASE_URL = os.getenv(
+
+def _setting(name: str, default: str = "") -> str:
+    """Read from environment (.env) first, then Streamlit secrets (Cloud)."""
+    value = os.getenv(name, "")
+    if value:
+        return value
+    try:
+        import streamlit as st
+
+        secrets = getattr(st, "secrets", None)
+        if secrets is not None and name in secrets:
+            return str(secrets[name])
+    except Exception:
+        pass
+    return default
+
+
+ACTIVITYINFO_TOKEN = _setting("ACTIVITYINFO_TOKEN", "")
+ACTIVITYINFO_BASE_URL = _setting(
     "ACTIVITYINFO_BASE_URL", "https://www.activityinfo.org/resources"
 ).rstrip("/")
-DATABASE_ID = os.getenv("ACTIVITYINFO_DATABASE_ID", "c6whbx9kv7zwnux3")
+DATABASE_ID = _setting("ACTIVITYINFO_DATABASE_ID", "c6whbx9kv7zwnux3")
 
 # Form IDs — WCA DIMA Statistics & Analysis
 FORM_POPULATION = "cae6v67mnrh690es"
