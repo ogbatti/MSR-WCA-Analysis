@@ -1,0 +1,33 @@
+# Environment
+.env
+.env.local
+*.pyc
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+
+# Data cache
+data/cache/
+data/raw/
+*.parquet
+*.pkl
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Probe / temp artifacts
+databases.json
+db_tree.json
+schema_*.json
+probe_*.json
+ref_*.json
+population_meta.json
+sample_*.json
+query_*.json
