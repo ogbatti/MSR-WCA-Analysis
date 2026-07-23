@@ -368,10 +368,16 @@ def maybe_rephrase(
     text: str, *, question: str, ctx: AssistantContext, grounded: bool
 ) -> str:
     """Optionally polish wording via OpenAI-compatible API; figures stay from tools."""
+    try:
+        from src.flags import feature_assistant_llm
+        if not feature_assistant_llm():
+            return text
+    except Exception:  # noqa: BLE001
+        from src.config import _setting
+        if (_setting("ASSISTANT_LLM", "off") or "off").lower() not in {"on", "1", "true"}:
+            return text
     from src.config import _setting
 
-    if (_setting("ASSISTANT_LLM", "off") or "off").lower() not in {"on", "1", "true"}:
-        return text
     api_key = _setting("OPENAI_API_KEY") or _setting("AZURE_OPENAI_API_KEY")
     if not api_key:
         return text

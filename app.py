@@ -34,6 +34,7 @@ for _mod_name in (
     "src.auth",
     "src.audit",
     "src.assistant",
+    "src.flags",
 ):
     if _mod_name in sys.modules:
         importlib.reload(sys.modules[_mod_name])
@@ -572,29 +573,34 @@ def main() -> None:
     previous = filtered_all[filtered_all["year_month"] == compare_month]
     kpi = kpi_snapshot(current, previous)
 
-    (
-        tab_overview,
-        tab_trends,
-        tab_maps,
-        tab_territory,
-        tab_shelter,
-        tab_reports,
-        tab_assistant,
-        tab_forecast,
-        tab_about,
-    ) = st.tabs(
-        [
-            t("overview", lang),
-            t("trends", lang),
-            t("maps", lang),
-            t("territory", lang),
-            t("shelter_psn", lang),
-            t("reports", lang),
-            t("assistant", lang),
-            t("forecast", lang),
-            t("about", lang),
-        ]
-    )
+    from src.flags import feature_assistant
+
+    show_assistant = feature_assistant()
+    tab_labels = [
+        t("overview", lang),
+        t("trends", lang),
+        t("maps", lang),
+        t("territory", lang),
+        t("shelter_psn", lang),
+        t("reports", lang),
+    ]
+    if show_assistant:
+        tab_labels.append(t("assistant", lang))
+    tab_labels.extend([t("forecast", lang), t("about", lang)])
+
+    tabs = st.tabs(tab_labels)
+    tab_overview = tabs[0]
+    tab_trends = tabs[1]
+    tab_maps = tabs[2]
+    tab_territory = tabs[3]
+    tab_shelter = tabs[4]
+    tab_reports = tabs[5]
+    idx = 6
+    tab_assistant = tabs[idx] if show_assistant else None
+    if show_assistant:
+        idx += 1
+    tab_forecast = tabs[idx]
+    tab_about = tabs[idx + 1]
 
     with tab_overview:
         st.info(t("guided_hint_overview", lang))
@@ -1120,63 +1126,64 @@ def main() -> None:
                 else:
                     st.dataframe(pd.DataFrame(events), width="stretch", hide_index=True)
 
-    with tab_assistant:
-        from src.assistant import AssistantContext, answer_question
+    if tab_assistant is not None:
+        with tab_assistant:
+            from src.assistant import AssistantContext, answer_question
 
-        st.caption(t("assistant_intro", lang))
-        if "assistant_messages" not in st.session_state:
-            st.session_state.assistant_messages = []
+            st.caption(t("assistant_intro", lang))
+            if "assistant_messages" not in st.session_state:
+                st.session_state.assistant_messages = []
 
-        for msg in st.session_state.assistant_messages:
-            with st.chat_message(msg["role"]):
-                st.markdown(msg["content"])
-                if msg.get("meta"):
-                    st.caption(msg["meta"])
+            for msg in st.session_state.assistant_messages:
+                with st.chat_message(msg["role"]):
+                    st.markdown(msg["content"])
+                    if msg.get("meta"):
+                        st.caption(msg["meta"])
 
-        prompt = st.chat_input(t("assistant_placeholder", lang))
-        if prompt:
-            st.session_state.assistant_messages.append(
-                {"role": "user", "content": prompt}
-            )
-            ctx = AssistantContext(
-                lang=lang,
-                month=month,
-                month_label=month_label,
-                compare_month=compare_month,
-                current=current,
-                previous=previous,
-                pop_codes=pop_codes,
-                host_map=host_map,
-                data_version=data_version_line,
-            )
-            reply = answer_question(prompt, ctx)
-            meta = t("assistant_grounded", lang) if reply.grounded else ""
-            if reply.intent:
-                meta = (meta + f" · {reply.intent}").strip(" ·")
-            st.session_state.assistant_messages.append(
-                {
-                    "role": "assistant",
-                    "content": reply.text,
-                    "meta": meta,
-                }
-            )
-            log_event(
-                "assistant_ask",
-                user=user,
-                details={
-                    "intent": reply.intent,
-                    "grounded": reply.grounded,
-                    "month": month,
-                    "q": prompt[:200],
-                },
-            )
-            st.rerun()
+            prompt = st.chat_input(t("assistant_placeholder", lang))
+            if prompt:
+                st.session_state.assistant_messages.append(
+                    {"role": "user", "content": prompt}
+                )
+                ctx = AssistantContext(
+                    lang=lang,
+                    month=month,
+                    month_label=month_label,
+                    compare_month=compare_month,
+                    current=current,
+                    previous=previous,
+                    pop_codes=pop_codes,
+                    host_map=host_map,
+                    data_version=data_version_line,
+                )
+                reply = answer_question(prompt, ctx)
+                meta = t("assistant_grounded", lang) if reply.grounded else ""
+                if reply.intent:
+                    meta = (meta + f" · {reply.intent}").strip(" ·")
+                st.session_state.assistant_messages.append(
+                    {
+                        "role": "assistant",
+                        "content": reply.text,
+                        "meta": meta,
+                    }
+                )
+                log_event(
+                    "assistant_ask",
+                    user=user,
+                    details={
+                        "intent": reply.intent,
+                        "grounded": reply.grounded,
+                        "month": month,
+                        "q": prompt[:200],
+                    },
+                )
+                st.rerun()
 
-        if st.session_state.assistant_messages and st.button(
-            t("assistant_clear", lang), key="assistant_clear_btn"
-        ):
-            st.session_state.assistant_messages = []
-            st.rerun()
+            if st.session_state.assistant_messages and st.button(
+                t("assistant_clear", lang), key="assistant_clear_btn"
+            ):
+                st.session_state.assistant_messages = []
+                st.rerun()
 
     with tab_forecast:
         st.info(t("forecast_disclaimer", lang))

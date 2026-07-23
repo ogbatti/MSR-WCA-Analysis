@@ -32,7 +32,7 @@ Outil de référence MSR WCA : chiffres opposables, gouvernance, PDF institution
 - [x] Bandeau qualité (couverture sexe REF/ASY, écarts detailed vs total)
 - [x] Tests automatiques agrégation (`tests/test_analytical_subset.py`)
 - [x] Bandeau « staging » pour distinguer clairement de la prod
-- [ ] CI GitHub Actions (prochaine itération)
+- [x] CI GitHub Actions (prochaine itération)
 - [ ] Réconciliation vs totaux de référence externes (si source dispo)
 
 ### Phase 2 — Produit + gouvernance
@@ -53,10 +53,13 @@ Outil de référence MSR WCA : chiffres opposables, gouvernance, PDF institution
 - [ ] Évaluation qualité sur jeu de questions de référence (DIMA)
 
 ### Phase 4 — Validation puis bascule prod
-- Recette staging complète
-- Checklist signée (ci-dessous)
-- Merge `develop` → `master` + déploiement prod
-- Option : feature flag AI au début en prod
+- [x] Grille de recette staging — `docs/RECETTE_STAGING.md`
+- [x] Procédure bascule / rollback — `docs/BASCULE_PROD.md`
+- [x] Feature flags `FEATURE_ASSISTANT` / `ASSISTANT_LLM` — `src/flags.py`
+- [x] CI GitHub Actions (pytest) — `.github/workflows/ci.yml`
+- [ ] Recette staging exécutée et signée (Go)
+- [ ] Merge `develop` → `master` **uniquement après Go**
+- [ ] Smoke prod post-bascule
 
 ---
 
