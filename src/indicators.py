@@ -511,6 +511,48 @@ def _country_centroid(
     return None
 
 
+def _admin_centroids(geo: pd.DataFrame, level: str, name_col: str) -> pd.DataFrame:
+    """
+    Build name → lat/lon lookup for an admin level.
+
+    Prefer rows with level == admin1/admin2. If those are absent (e.g. Chad only
+    has admin3 rows), derive centroids from finer rows that still carry admin1_name /
+    admin2_name.
+    """
+    empty = pd.DataFrame(columns=[name_col, "latitude", "longitude"])
+    if geo is None or geo.empty or name_col not in geo.columns:
+        return empty
+    base = geo.dropna(subset=[name_col, "latitude", "longitude"]).copy()
+    if base.empty:
+        return empty
+    base[name_col] = base[name_col].astype(str).str.strip()
+    base = base[base[name_col] != ""]
+    if base.empty:
+        return empty
+
+    if "level" in base.columns:
+        exact = base[base["level"] == level]
+        if not exact.empty:
+            base = exact
+
+    return (
+        base.groupby(name_col, as_index=False)
+        .agg(latitude=("latitude", "mean"), longitude=("longitude", "mean"))
+    )
+
+
+def _match_admin_centroid(
+    centroids: pd.DataFrame, name_col: str, name: object
+) -> tuple[float, float] | None:
+    if centroids.empty or name is None or pd.isna(name):
+        return None
+    key = str(name).strip().lower()
+    hit = centroids[centroids[name_col].astype(str).str.strip().str.lower() == key]
+    if hit.empty:
+        return None
+    return float(hit.iloc[0]["latitude"]), float(hit.iloc[0]["longitude"])
+
+
 def admin1_map_points(
     pop_df: pd.DataFrame,
     geoloc_df: pd.DataFrame,
@@ -536,21 +578,10 @@ def admin1_map_points(
     geo = geoloc_df.copy() if geoloc_df is not None and not geoloc_df.empty else pd.DataFrame()
     if not geo.empty and "iso3" in geo.columns:
         geo = geo[geo["iso3"].astype(str).str.upper() == str(asylum_iso3).upper()]
-    g1 = (
-        geo[geo["level"] == "admin1"].copy()
-        if not geo.empty and "level" in geo.columns
-        else pd.DataFrame()
-    )
+    g1 = _admin_centroids(geo, "admin1", "admin1_name")
     country_xy = _country_centroid(focus, geoloc_df, asylum_iso3, countries_df)
     country_lat = country_xy[0] if country_xy else None
     country_lon = country_xy[1] if country_xy else None
-
-    def _match_name(frame: pd.DataFrame, col: str, name: object) -> pd.DataFrame:
-        if frame.empty or col not in frame.columns or name is None or pd.isna(name):
-            return pd.DataFrame()
-        return frame[
-            frame[col].astype(str).str.strip().str.lower() == str(name).strip().lower()
-        ]
 
     rows: list[dict] = []
     if "coa_admin1" not in focus.columns:
@@ -564,10 +595,9 @@ def admin1_map_points(
             .sum()
         )
     for _, r in by_a1.iterrows():
-        match1 = _match_name(g1, "admin1_name", r["coa_admin1"])
-        if not match1.empty:
-            lat = float(match1.iloc[0]["latitude"])
-            lon = float(match1.iloc[0]["longitude"])
+        xy = _match_admin_centroid(g1, "admin1_name", r["coa_admin1"])
+        if xy is not None:
+            lat, lon = xy
         elif country_lat is not None:
             lat, lon = country_lat, country_lon
         else:
@@ -642,27 +672,11 @@ def residence_map_points(
         geo = geoloc_df.copy() if geoloc_df is not None and not geoloc_df.empty else pd.DataFrame()
         if not geo.empty and "iso3" in geo.columns:
             geo = geo[geo["iso3"].astype(str).str.upper() == str(asylum_iso3).upper()]
-        g2 = (
-            geo[geo["level"] == "admin2"].copy()
-            if not geo.empty and "level" in geo.columns
-            else pd.DataFrame()
-        )
-        g1 = (
-            geo[geo["level"] == "admin1"].copy()
-            if not geo.empty and "level" in geo.columns
-            else pd.DataFrame()
-        )
+        g2 = _admin_centroids(geo, "admin2", "admin2_name")
+        g1 = _admin_centroids(geo, "admin1", "admin1_name")
         country_xy = _country_centroid(focus, geoloc_df, asylum_iso3, countries_df)
         country_lat = country_xy[0] if country_xy else None
         country_lon = country_xy[1] if country_xy else None
-
-        def _match_name(frame: pd.DataFrame, col: str, name: object) -> pd.DataFrame:
-            if frame.empty or col not in frame.columns or name is None or pd.isna(name):
-                return pd.DataFrame()
-            return frame[
-                frame[col].astype(str).str.strip().str.lower()
-                == str(name).strip().lower()
-            ]
 
         a2_mask = focus["coa_admin2"].fillna("").astype(str).str.strip() != ""
         subset = focus.loc[a2_mask].copy()
@@ -673,19 +687,14 @@ def residence_map_points(
         by_a2 = subset.groupby(group_cols, as_index=False, dropna=False)["total"].sum()
         rows: list[dict] = []
         for _, r in by_a2.iterrows():
-            lat = lon = None
-            match2 = _match_name(g2, "admin2_name", r["coa_admin2"])
-            if not match2.empty:
-                lat = float(match2.iloc[0]["latitude"])
-                lon = float(match2.iloc[0]["longitude"])
+            xy = _match_admin_centroid(g2, "admin2_name", r["coa_admin2"])
+            if xy is None:
+                xy = _match_admin_centroid(g1, "admin1_name", r.get("coa_admin1"))
+            if xy is not None:
+                lat, lon = xy
+            elif country_lat is not None:
+                lat, lon = country_lat, country_lon
             else:
-                match1 = _match_name(g1, "admin1_name", r.get("coa_admin1"))
-                if not match1.empty:
-                    lat = float(match1.iloc[0]["latitude"])
-                    lon = float(match1.iloc[0]["longitude"])
-                elif country_lat is not None:
-                    lat, lon = country_lat, country_lon
-            if lat is None:
                 continue
             rows.append(
                 {
