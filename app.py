@@ -409,40 +409,36 @@ def main() -> None:
     months = _months(base)
     month_labels = [format_month_label(m, lang) for m in months]
     label_to_ym = dict(zip(month_labels, months))
-    prev_default = months[-2] if len(months) > 1 else months[-1]
-    # Prefer same month previous year for YoY when available
-    yoy_candidate = None
-    latest = months[-1]
-    try:
-        y, mth = latest.split("-")
-        cand = f"{int(y) - 1}-{mth}"
-        if cand in months:
-            yoy_candidate = cand
-    except Exception:
-        yoy_candidate = None
 
     month_label = st.sidebar.selectbox(
         t("month", lang),
         options=month_labels,
         index=len(month_labels) - 1,
+        key="ref_month_label",
     )
-    compare_default_idx = (
-        months.index(yoy_candidate)
-        if yoy_candidate
-        else months.index(prev_default)
-    )
+    month = label_to_ym[month_label]
+    ref_idx = months.index(month)
+    # Default comparison = previous month (MoM), relative to the selected reference month
+    mom_default = months[ref_idx - 1] if ref_idx > 0 else months[ref_idx]
+    mom_label = format_month_label(mom_default, lang)
+
+    if st.session_state.get("_ref_for_compare") != month:
+        st.session_state["_ref_for_compare"] = month
+        st.session_state["compare_month_label"] = mom_label
+    elif st.session_state.get("compare_month_label") not in month_labels:
+        # Language switch: rematch to MoM default for current reference
+        st.session_state["compare_month_label"] = mom_label
+
     compare_label = st.sidebar.selectbox(
         t("compare_month", lang),
         options=month_labels,
-        index=compare_default_idx,
+        key="compare_month_label",
     )
-    if yoy_candidate:
-        st.sidebar.caption(
-            f"YoY dispo : {format_month_label(yoy_candidate, lang)}"
-            if lang == "fr"
-            else f"YoY available: {format_month_label(yoy_candidate, lang)}"
-        )
-    month = label_to_ym[month_label]
+    st.sidebar.caption(
+        "Par défaut : mois précédent (MoM)"
+        if lang == "fr"
+        else "Default: previous month (MoM)"
+    )
     compare_month = label_to_ym[compare_label]
 
     pop_options = sorted(base["pop_code"].dropna().unique().tolist())
