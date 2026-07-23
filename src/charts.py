@@ -811,7 +811,7 @@ def registration_share_pie(df: pd.DataFrame, lang: str) -> go.Figure:
         title=title,
         hole=0.35,
     )
-    fig.update_traces(textposition="inside", textinfo="percent+label")
+    fig.update_traces(textposition="inside", textinfo="percent")
     apply_unhcr_layout(fig, title=title)
     fig.update_layout(height=400, showlegend=True)
     return fig
