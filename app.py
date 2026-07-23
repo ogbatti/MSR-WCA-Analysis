@@ -180,7 +180,7 @@ def _inject_brand() -> None:
 
 def _render_header(lang: str) -> None:
     logo = _logo_data_uri()
-    kicker = "UNHCR · RBWCA · DIMA" if lang == "en" else "HCR · RBWCA · DIMA"
+    kicker = "RBWCA · DIMA"
     img = f'<img src="{logo}" alt="UNHCR logo" />' if logo else ""
     st.markdown(
         f"""
