@@ -942,6 +942,13 @@ def build_methodology_pdf(*, lang: str, current: pd.DataFrame) -> bytes:
             "ventilées par sexe/âge (souvent REF/ASY). Les PDI et apatrides sont souvent "
             "reportés sans ventilation."
         )
+        pdf.h2("Enregistrement REF + ASY")
+        pdf.p(
+            "Indicateur basé sur le champ ActivityInfo « basis » : "
+            "registration = enregistré individuellement ; "
+            "autres bases (estimate, census, pre-registration, survey…) = "
+            "non enregistré individuellement."
+        )
         pdf.h2("Acronymes")
         for code, labels in POP_TYPE_LABELS.items():
             pdf.bullet(f"{code} — {labels['fr']}")
@@ -962,6 +969,13 @@ def build_methodology_pdf(*, lang: str, current: pd.DataFrame) -> bytes:
             "Female/children shares are computed only on populations with sex/age "
             "disaggregation (often REF/ASY). IDPs and stateless are often reported without "
             "disaggregation."
+        )
+        pdf.h2("REF + ASY registration")
+        pdf.p(
+            "Indicator based on the ActivityInfo “basis” field: "
+            "registration = individually registered; "
+            "other bases (estimate, census, pre-registration, survey…) = "
+            "not individually registered."
         )
         pdf.h2("Acronyms")
         for code, labels in POP_TYPE_LABELS.items():

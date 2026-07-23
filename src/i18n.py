@@ -55,7 +55,7 @@ STRINGS = {
         "en": "Country for the “Country profile” report",
     },
     "forecast": {"fr": "Projection illustrative", "en": "Illustrative projection"},
-    "about": {"fr": "À propos & glossaire", "en": "About & glossary"},
+    "about": {"fr": "À propos, méthodologie & glossaire", "en": "About, methodology & glossary"},
     "narrative": {"fr": "Interprétation", "en": "Narrative"},
     "kpi_total": {"fr": "Population totale", "en": "Total population"},
     "kpi_ref_asy": {"fr": "REF + ASY", "en": "REF + ASY"},

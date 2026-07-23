@@ -45,6 +45,8 @@ _COMPOSITION_BLUE_RAMP = [
 ]
 _POP_ORDER = ["REF", "ASY", "IDP", "STA", "RET", "RDP", "OOC", "NOC"]
 _WORLD_COUNTRIES_PATH = ROOT / "assets" / "world_countries.json"
+# Fallback frame for WCA (lat/lon): covers Cap-Vert → RDC / Tchad
+_WCA_BOUNDS = [[-7.5, -26.0], [24.5, 32.0]]
 
 
 @lru_cache(maxsize=1)
@@ -69,6 +71,65 @@ def _feature_iso3(feature: dict) -> str:
         if val and str(val).upper() not in {"", "-99", "NONE", "NULL"}:
             return str(val).upper()
     return ""
+
+
+def _coords_extents(coords, lats: list[float], lons: list[float]) -> None:
+    if not coords:
+        return
+    if isinstance(coords[0], (int, float)):
+        lons.append(float(coords[0]))
+        lats.append(float(coords[1]))
+        return
+    for item in coords:
+        _coords_extents(item, lats, lons)
+
+
+def _wca_bounds(wca_iso3: list[str] | None) -> list[list[float]]:
+    """Southwest / northeast bounds for the WCA region."""
+    geo = _world_countries_geojson()
+    if not geo or not wca_iso3:
+        return [list(b) for b in _WCA_BOUNDS]
+    wca = {str(c).upper() for c in wca_iso3 if c}
+    lats: list[float] = []
+    lons: list[float] = []
+    for feat in geo.get("features", []):
+        if _feature_iso3(feat) not in wca:
+            continue
+        geom = feat.get("geometry") or {}
+        _coords_extents(geom.get("coordinates"), lats, lons)
+    if not lats or not lons:
+        return [list(b) for b in _WCA_BOUNDS]
+    pad = 1.5
+    return [
+        [max(-15.0, min(lats) - pad), max(-30.0, min(lons) - pad)],
+        [min(28.0, max(lats) + pad), min(35.0, max(lons) + pad)],
+    ]
+
+
+def _fit_map_to_bounds(fmap: folium.Map, bounds: list[list[float]]) -> None:
+    """Force Leaflet to frame the given bounds on first load (st_folium-safe)."""
+    sw, ne = bounds
+    fmap.fit_bounds(bounds, padding=(24, 24))
+    # streamlit-folium sometimes ignores fit_bounds; reinforce via JS
+    js = f"""
+    <script>
+    (function() {{
+      function fitOnce() {{
+        var keys = Object.keys(window).filter(k => k.startsWith('map_'));
+        keys.forEach(function(k) {{
+          var m = window[k];
+          if (m && m.fitBounds && !m._wcaFitted) {{
+            m.fitBounds([[{sw[0]}, {sw[1]}], [{ne[0]}, {ne[1]}]], {{padding: [24, 24], maxZoom: 6}});
+            m._wcaFitted = true;
+          }}
+        }});
+      }}
+      setTimeout(fitOnce, 80);
+      setTimeout(fitOnce, 400);
+    }})();
+    </script>
+    """
+    fmap.get_root().html.add_child(folium.Element(js))
 
 
 def _add_wca_region_layer(fmap: folium.Map, wca_iso3: list[str] | None) -> None:
@@ -881,12 +942,26 @@ def hosts_composition_pie_map(
         d = d[d["asylum_iso3"].isin(wca_iso3)]
     d = d.dropna(subset=["lat", "lon"]) if not d.empty else d
 
+    bounds = _wca_bounds(wca_iso3)
+    center_lat = (bounds[0][0] + bounds[1][0]) / 2.0
+    center_lon = (bounds[0][1] + bounds[1][1]) / 2.0
+    # Slightly larger than WCA to allow light panning without world wrap
+    max_bounds = [
+        [bounds[0][0] - 8, bounds[0][1] - 10],
+        [bounds[1][0] + 8, bounds[1][1] + 10],
+    ]
+
     fmap = folium.Map(
-        location=[8.0, 5.0],
+        location=[center_lat, center_lon],
         zoom_start=4,
         tiles="CartoDB positron",
         control_scale=True,
+        max_bounds=True,
+        min_zoom=3,
+        max_zoom=10,
+        world_copy_jump=False,
     )
+    fmap.options["maxBounds"] = max_bounds
     # Prevent browser/Leaflet rectangular focus ring when clicking countries or pies
     fmap.get_root().header.add_child(
         folium.Element(
@@ -908,6 +983,7 @@ def hosts_composition_pie_map(
     )
     _add_wca_region_layer(fmap, wca_iso3)
     if d.empty:
+        _fit_map_to_bounds(fmap, bounds)
         return fmap
 
     skip = {"asylum_iso3", "country_name", "total", "lat", "lon"}
@@ -963,11 +1039,7 @@ def hosts_composition_pie_map(
             popup=popup,
         ).add_to(fmap)
 
-    # Fit bounds
-    lats = d["lat"].astype(float).tolist()
-    lons = d["lon"].astype(float).tolist()
-    if lats and lons:
-        fmap.fit_bounds([[min(lats) - 2, min(lons) - 2], [max(lats) + 2, max(lons) + 2]])
+    _fit_map_to_bounds(fmap, bounds)
 
     region_note = (
         "WCA highlighted · outside greyed"

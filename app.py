@@ -294,6 +294,19 @@ apatrides, etc.), ses tendances, sa géographie et des scénarios de projection.
 bascule automatique sur `total` pour les types uniquement reportés à ce niveau
 (ex. PDI, apatrides), sans mélanger les niveaux d'agrégation au sein d'un même type.
 
+### Méthodologie & indicateurs
+
+| Indicateur | Définition |
+|------------|------------|
+| **Population totale** | Somme des effectifs des types sélectionnés pour le mois de référence |
+| **REF + ASY** | Réfugiés et demandeurs d'asile uniquement |
+| **% Femmes* / % Enfants*** | Parts calculées uniquement sur les populations ventilées par sexe / âge (souvent REF/ASY) |
+| **Variation MoM** | Écart entre le mois de référence et le mois de comparaison |
+| **Enregistrement REF + ASY** | Basé sur le champ ActivityInfo `basis` : `registration` = enregistré individuellement ; autres bases (`estimate`, `census`, `pre-registration`, `survey`…) = non enregistré individuellement |
+| **Hébergement (camp / hors camp)** | Part des REF+ASY selon le type d'hébergement reporté |
+| **Carte des zones de résidence** | Cascade géographique : Admin2 si renseigné, sinon Admin1, sinon centroïde pays |
+| **Projection 2036** | Illustration à partir d'hypothèses métier (croissance, choc conflit, retours) ; historique mensuel court |
+
 ### Glossaire
 
 | Acronyme | Signification |
@@ -346,6 +359,19 @@ stateless persons, etc.), trends, geography and scenario projections.
 **Aggregation method:** prefer `detailed` rows (admin / locality);
 automatically fall back to `total` for types only reported at that level
 (e.g. IDPs, stateless), without mixing aggregation levels within a type.
+
+### Methodology & indicators
+
+| Indicator | Definition |
+|-----------|------------|
+| **Total population** | Sum of selected population types for the reference month |
+| **REF + ASY** | Refugees and asylum-seekers only |
+| **% Female* / % Children*** | Shares computed only on populations with sex / age disaggregation (often REF/ASY) |
+| **MoM change** | Difference between the reference month and the comparison month |
+| **REF + ASY registration** | Based on the ActivityInfo `basis` field: `registration` = individually registered; other bases (`estimate`, `census`, `pre-registration`, `survey`…) = not individually registered |
+| **Accommodation (camp / out of camp)** | REF+ASY share by reported accommodation type |
+| **Residence areas map** | Geographic cascade: Admin2 when reported, else Admin1, else country centroid |
+| **2036 projection** | Illustration from business assumptions (growth, conflict shock, returns); short monthly history |
 
 ### Glossary
 
@@ -639,7 +665,6 @@ def main() -> None:
                         else t("registration_not_registered", lang)
                     )
                     st.metric(label, f"{row['share'] * 100:.1f}%", _fmt_int(row["total"]))
-                st.caption(t("registration_note", lang))
 
         with st.expander(t("data_quality", lang)):
             q = data_quality_summary(current)
@@ -766,7 +791,16 @@ def main() -> None:
         pie_map = hosts_composition_pie_map(
             composition, lang, wca_iso3=wca_iso3 or None
         )
-        st_folium(pie_map, width=None, height=540, returned_objects=[])
+        st_folium(
+            pie_map,
+            center=(8.0, 5.0),
+            zoom=4,
+            height=540,
+            returned_objects=[],
+            key="wca_composition_map",
+            use_container_width=True,
+            wrap_longitude=False,
+        )
 
         with st.expander(t("choropleth", lang)):
             st.plotly_chart(
