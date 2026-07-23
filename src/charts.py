@@ -1,14 +1,18 @@
 """Plotly chart helpers — UNHCR brand styling."""
 from __future__ import annotations
 
+import json
 import math
+from functools import lru_cache
+from pathlib import Path
 
 import folium
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+from folium.features import GeoJson, GeoJsonTooltip
 
-from src.config import POP_TYPE_LABELS
+from src.config import POP_TYPE_LABELS, ROOT
 from src.theme import (
     BLUE_01,
     BLUE_02,
@@ -20,6 +24,7 @@ from src.theme import (
     CHOROPLETH_BLUES,
     GREEN_PRIMARY,
     GREY_02,
+    GREY_03,
     RED_PRIMARY,
     SCENARIO_COLORS,
     YELLOW_PRIMARY,
@@ -39,6 +44,106 @@ _COMPOSITION_BLUE_RAMP = [
     "#E5E5E5",
 ]
 _POP_ORDER = ["REF", "ASY", "IDP", "STA", "RET", "RDP", "OOC", "NOC"]
+_WORLD_COUNTRIES_PATH = ROOT / "assets" / "world_countries.json"
+
+
+@lru_cache(maxsize=1)
+def _world_countries_geojson() -> dict | None:
+    """Load Natural-Earth style world countries GeoJSON (feature id = ISO3)."""
+    if not _WORLD_COUNTRIES_PATH.exists():
+        return None
+    try:
+        with _WORLD_COUNTRIES_PATH.open(encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _feature_iso3(feature: dict) -> str:
+    props = feature.get("properties") or {}
+    for key in ("id", "ISO_A3", "iso_a3", "ADM0_A3", "ISO3"):
+        if key == "id":
+            val = feature.get("id")
+        else:
+            val = props.get(key)
+        if val and str(val).upper() not in {"", "-99", "NONE", "NULL"}:
+            return str(val).upper()
+    return ""
+
+
+def _add_wca_region_layer(fmap: folium.Map, wca_iso3: list[str] | None) -> None:
+    """Highlight WCA countries and grey out the rest of the world."""
+    geo = _world_countries_geojson()
+    if not geo or not wca_iso3:
+        return
+    wca = {str(c).upper() for c in wca_iso3 if c}
+
+    def style_fn(feature: dict) -> dict:
+        iso = _feature_iso3(feature)
+        if iso in wca:
+            return {
+                "fillColor": BLUE_01,
+                "color": BLUE_PRIMARY,
+                "weight": 1.6,
+                "fillOpacity": 0.42,
+                "opacity": 0.95,
+            }
+        return {
+            "fillColor": GREY_02,
+            "color": GREY_03,
+            "weight": 0.35,
+            "fillOpacity": 0.55,
+            "opacity": 0.7,
+        }
+
+    def highlight_fn(feature: dict) -> dict:
+        iso = _feature_iso3(feature)
+        if iso in wca:
+            return {
+                "fillColor": BLUE_02,
+                "color": BLUE_06,
+                "weight": 2.2,
+                "fillOpacity": 0.55,
+            }
+        return {
+            "fillColor": GREY_03,
+            "color": GREY_03,
+            "weight": 0.5,
+            "fillOpacity": 0.65,
+        }
+
+    GeoJson(
+        geo,
+        name="WCA region",
+        style_function=style_fn,
+        highlight_function=highlight_fn,
+        tooltip=GeoJsonTooltip(
+            fields=["name"],
+            aliases=[""],
+            labels=False,
+            sticky=False,
+        ),
+        smooth_factor=1.2,
+    ).add_to(fmap)
+
+    # Stronger contour only for WCA countries (outline on top)
+    wca_only = {
+        "type": "FeatureCollection",
+        "features": [f for f in geo.get("features", []) if _feature_iso3(f) in wca],
+    }
+    if wca_only["features"]:
+        GeoJson(
+            wca_only,
+            name="WCA outline",
+            style_function=lambda _f: {
+                "fillColor": "transparent",
+                "fillOpacity": 0,
+                "color": BLUE_06,
+                "weight": 2.4,
+                "opacity": 0.95,
+            },
+            interactive=False,
+        ).add_to(fmap)
 
 
 def _pop_name(code: str, lang: str) -> str:
@@ -780,6 +885,7 @@ def hosts_composition_pie_map(
         tiles="CartoDB positron",
         control_scale=True,
     )
+    _add_wca_region_layer(fmap, wca_iso3)
     if d.empty:
         return fmap
 
@@ -842,6 +948,11 @@ def hosts_composition_pie_map(
     if lats and lons:
         fmap.fit_bounds([[min(lats) - 2, min(lons) - 2], [max(lats) + 2, max(lons) + 2]])
 
+    region_note = (
+        "WCA highlighted · outside greyed"
+        if lang == "en"
+        else "Région WCA délimitée · hors région grisé"
+    )
     legend_rows = "".join(
         f'<div style="margin:2px 0;"><span style="display:inline-block;width:12px;height:12px;'
         f'background:{color};margin-right:6px;border-radius:2px;"></span>{label}</div>'
@@ -849,12 +960,13 @@ def hosts_composition_pie_map(
     )
     legend = folium.Element(
         f"""
-        <div style="position: fixed; top: 12px; left: 50px; z-index: 9999;
+        <div style="position: fixed; bottom: 28px; left: 12px; z-index: 9999;
                     background: rgba(255,255,255,0.95); padding: 8px 12px;
                     border-left: 4px solid #0072BC; border-radius: 2px;
                     font-family: Lato, Arial, sans-serif; font-size: 13px;
                     color: #0B3754; box-shadow: 0 1px 4px rgba(0,0,0,.12); max-width: 280px;">
-          <div style="font-weight: 700; margin-bottom: 6px;">{title}</div>
+          <div style="font-weight: 700; margin-bottom: 4px;">{title}</div>
+          <div style="font-size: 11px; color: #737373; margin-bottom: 6px;">{region_note}</div>
           {legend_rows}
         </div>
         """
