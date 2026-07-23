@@ -543,15 +543,31 @@ def main() -> None:
         hosts = country_stock(current, name_col=host_label)
         origins = origin_stock(current)
         o_name = "origin_name_fr" if lang == "fr" else "origin_name_en"
+        if o_name not in origins.columns:
+            o_name = next(
+                (
+                    c
+                    for c in ["origin_name_en", "origin_name_fr", "origin_hcr3"]
+                    if c in origins.columns
+                ),
+                "origin_hcr3",
+            )
         hosts_agg = (
             hosts.groupby(["asylum_iso3", host_label], as_index=False)["total"]
             .sum()
             .sort_values("total", ascending=False)
+            if not hosts.empty
+            and "asylum_iso3" in hosts.columns
+            and host_label in hosts.columns
+            else pd.DataFrame(columns=["asylum_iso3", host_label, "total"])
         )
+        origin_group = [c for c in ["origin_hcr3", o_name] if c in origins.columns]
         origins_agg = (
-            origins.groupby(["origin_hcr3", o_name], as_index=False)["total"]
+            origins.groupby(origin_group, as_index=False)["total"]
             .sum()
             .sort_values("total", ascending=False)
+            if not origins.empty and origin_group and "total" in origins.columns
+            else pd.DataFrame(columns=origin_group + ["total"])
         )
 
         left, right = st.columns(2)
@@ -826,10 +842,22 @@ def main() -> None:
             )
             c_orig = origin_stock(country_df)
             c_o = "origin_name_fr" if lang == "fr" else "origin_name_en"
+            if c_o not in c_orig.columns:
+                c_o = next(
+                    (
+                        c
+                        for c in ["origin_name_en", "origin_name_fr", "origin_hcr3"]
+                        if c in c_orig.columns
+                    ),
+                    "origin_hcr3",
+                )
+            c_origin_group = [c for c in ["origin_hcr3", c_o] if c in c_orig.columns]
             c_orig_agg = (
-                c_orig.groupby(["origin_hcr3", c_o], as_index=False)["total"]
+                c_orig.groupby(c_origin_group, as_index=False)["total"]
                 .sum()
                 .sort_values("total", ascending=False)
+                if not c_orig.empty and c_origin_group and "total" in c_orig.columns
+                else pd.DataFrame(columns=c_origin_group + ["total"])
             )
             pc1, pc2 = st.columns(2)
             with pc1:
@@ -838,10 +866,17 @@ def main() -> None:
                 if not pyr.empty and (pyr["female"].sum() + pyr["male"].sum()) > 0:
                     st.plotly_chart(age_sex_pyramid_chart(pyr, lang), width="stretch")
             with pc2:
-                st.plotly_chart(
-                    top_bar(c_orig_agg, c_o, t("top_origins", lang), lang=lang),
-                    width="stretch",
-                )
+                if c_orig_agg.empty or c_o not in c_orig_agg.columns:
+                    st.info(
+                        "Aucune origine disponible pour ce pays."
+                        if lang == "fr"
+                        else "No origin data available for this country."
+                    )
+                else:
+                    st.plotly_chart(
+                        top_bar(c_orig_agg, c_o, t("top_origins", lang), lang=lang),
+                        width="stretch",
+                    )
 
             a1_c = a1[a1["asylum_iso3"] == profile_iso] if not a1.empty else a1
             a2_c = admin2_stock(country_df)

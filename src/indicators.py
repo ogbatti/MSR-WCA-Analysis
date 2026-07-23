@@ -50,14 +50,39 @@ def country_stock(df: pd.DataFrame, name_col: str = "asylum_name_en") -> pd.Data
 
 
 def origin_stock(df: pd.DataFrame) -> pd.DataFrame:
+    empty_cols = [
+        "origin_hcr3",
+        "origin_iso3",
+        "origin_name_en",
+        "origin_name_fr",
+        "pop_code",
+        "total",
+        "female",
+        "male",
+    ]
     if df.empty:
-        return pd.DataFrame()
+        return pd.DataFrame(columns=empty_cols)
+    group_cols = [
+        c
+        for c in [
+            "origin_hcr3",
+            "origin_iso3",
+            "origin_name_en",
+            "origin_name_fr",
+            "pop_code",
+        ]
+        if c in df.columns
+    ]
+    if not group_cols or "total" not in df.columns:
+        return pd.DataFrame(columns=empty_cols)
+    agg = {"total": ("total", "sum")}
+    if "female" in df.columns:
+        agg["female"] = ("female", "sum")
+    if "male" in df.columns:
+        agg["male"] = ("male", "sum")
     return (
-        df.groupby(
-            ["origin_hcr3", "origin_iso3", "origin_name_en", "origin_name_fr", "pop_code"],
-            as_index=False,
-        )
-        .agg(total=("total", "sum"), female=("female", "sum"), male=("male", "sum"))
+        df.groupby(group_cols, as_index=False, dropna=False)
+        .agg(**agg)
         .sort_values("total", ascending=False)
     )
 
