@@ -1,21 +1,44 @@
 """Plotly chart helpers — UNHCR brand styling."""
 from __future__ import annotations
 
+import math
+
+import folium
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
 from src.config import POP_TYPE_LABELS
 from src.theme import (
+    BLUE_01,
+    BLUE_02,
+    BLUE_03,
+    BLUE_04,
+    BLUE_05,
+    BLUE_06,
     BLUE_PRIMARY,
     CHOROPLETH_BLUES,
     GREEN_PRIMARY,
+    GREY_02,
     RED_PRIMARY,
     SCENARIO_COLORS,
     YELLOW_PRIMARY,
     apply_unhcr_layout,
     pop_color,
 )
+
+# Dark → light blue ramp for composition pie slices (by preferred pop order)
+_COMPOSITION_BLUE_RAMP = [
+    BLUE_06,
+    BLUE_05,
+    BLUE_04,
+    BLUE_03,
+    BLUE_02,
+    BLUE_01,
+    GREY_02,
+    "#E5E5E5",
+]
+_POP_ORDER = ["REF", "ASY", "IDP", "STA", "RET", "RDP", "OOC", "NOC"]
 
 
 def _pop_name(code: str, lang: str) -> str:
@@ -644,6 +667,200 @@ def accommodation_share_pie(df: pd.DataFrame, lang: str) -> go.Figure:
     apply_unhcr_layout(fig, title=title)
     fig.update_layout(height=400, showlegend=True)
     return fig
+
+
+def registration_share_pie(df: pd.DataFrame, lang: str) -> go.Figure:
+    """REF + ASY individually registered vs not (ActivityInfo basis)."""
+    title = (
+        "REF + ASY — individual registration status"
+        if lang == "en"
+        else "REF + ASY — statut d'enregistrement individuel"
+    )
+    if df is None or df.empty:
+        fig = go.Figure()
+        apply_unhcr_layout(fig, title=title)
+        return fig
+    labels = {
+        "registered": (
+            "Individually registered" if lang == "en" else "Enregistrés individuellement"
+        ),
+        "not_registered": (
+            "Not individually registered"
+            if lang == "en"
+            else "Non enregistrés individuellement"
+        ),
+    }
+    d = df.copy()
+    d["label"] = d["registration_status"].map(lambda x: labels.get(x, x))
+    fig = px.pie(
+        d,
+        names="label",
+        values="total",
+        color="registration_status",
+        color_discrete_map={
+            "registered": BLUE_06,
+            "not_registered": BLUE_02,
+        },
+        title=title,
+        hole=0.35,
+    )
+    fig.update_traces(textposition="inside", textinfo="percent+label")
+    apply_unhcr_layout(fig, title=title)
+    fig.update_layout(height=400, showlegend=True)
+    return fig
+
+
+def _composition_color(code: str) -> str:
+    if code in _POP_ORDER:
+        return _COMPOSITION_BLUE_RAMP[_POP_ORDER.index(code) % len(_COMPOSITION_BLUE_RAMP)]
+    return BLUE_03
+
+
+def _svg_composition_pie(
+    parts: list[tuple[float, str]],
+    size: int,
+) -> str:
+    """Build an SVG pie from (value, color) slices."""
+    total = sum(v for v, _ in parts) or 1.0
+    r = size / 2.0
+    cx = cy = r
+    angle = -math.pi / 2.0
+    paths: list[str] = []
+    positive = [(v, c) for v, c in parts if v > 0]
+    if len(positive) == 1:
+        return (
+            f'<svg xmlns="http://www.w3.org/2000/svg" width="{size}" height="{size}" '
+            f'viewBox="0 0 {size} {size}" style="display:block;filter:drop-shadow(0 1px 2px rgba(11,55,84,.25))">'
+            f'<circle cx="{cx}" cy="{cy}" r="{r - 0.5}" fill="{positive[0][1]}" '
+            f'stroke="#FFFFFF" stroke-width="1.2"/></svg>'
+        )
+    for val, color in positive:
+        sweep = 2.0 * math.pi * (val / total)
+        x1 = cx + r * math.cos(angle)
+        y1 = cy + r * math.sin(angle)
+        angle2 = angle + sweep
+        x2 = cx + r * math.cos(angle2)
+        y2 = cy + r * math.sin(angle2)
+        large = 1 if sweep > math.pi else 0
+        paths.append(
+            f'<path d="M{cx:.2f},{cy:.2f} L{x1:.2f},{y1:.2f} '
+            f'A{r:.2f},{r:.2f} 0 {large},1 {x2:.2f},{y2:.2f} Z" '
+            f'fill="{color}" stroke="#FFFFFF" stroke-width="0.9"/>'
+        )
+        angle = angle2
+    return (
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{size}" height="{size}" '
+        f'viewBox="0 0 {size} {size}" style="display:block;filter:drop-shadow(0 1px 2px rgba(11,55,84,.25))">'
+        f'{"".join(paths)}</svg>'
+    )
+
+
+def hosts_composition_pie_map(
+    composition_df: pd.DataFrame,
+    lang: str,
+    wca_iso3: list[str] | None = None,
+) -> folium.Map:
+    """
+    WCA host map with composition pie markers (blue ramp dark→light) and rich hover.
+    `composition_df` from indicators.country_composition_geo.
+    """
+    title = (
+        "Composition by population type (host countries)"
+        if lang == "en"
+        else "Composition par type de population (pays d'asile)"
+    )
+    d = composition_df.copy() if composition_df is not None else pd.DataFrame()
+    if not d.empty and wca_iso3:
+        d = d[d["asylum_iso3"].isin(wca_iso3)]
+    d = d.dropna(subset=["lat", "lon"]) if not d.empty else d
+
+    fmap = folium.Map(
+        location=[8.0, 5.0],
+        zoom_start=4,
+        tiles="CartoDB positron",
+        control_scale=True,
+    )
+    if d.empty:
+        return fmap
+
+    skip = {"asylum_iso3", "country_name", "total", "lat", "lon"}
+    ordered_cols = [c for c in _POP_ORDER if c in d.columns]
+    ordered_cols += [
+        c
+        for c in d.columns
+        if c not in skip
+        and c not in ordered_cols
+        and pd.api.types.is_numeric_dtype(d[c])
+    ]
+
+    max_total = float(d["total"].max() or 1.0)
+    legend_items: list[tuple[str, str]] = []
+    for code in ordered_cols:
+        if float(d[code].sum()) <= 0:
+            continue
+        legend_items.append((_pop_name(code, lang), _composition_color(code)))
+
+    for _, row in d.iterrows():
+        total = float(row.get("total") or 0)
+        if total <= 0:
+            continue
+        parts: list[tuple[float, str]] = []
+        hover_lines = [
+            f"<b>{row.get('country_name') or row.get('asylum_iso3')}</b>",
+            f"{_total_label(lang)}: {total:,.0f}",
+        ]
+        for code in ordered_cols:
+            val = float(row.get(code) or 0)
+            if val <= 0:
+                continue
+            parts.append((val, _composition_color(code)))
+            share = val / total
+            hover_lines.append(
+                f"{_pop_name(code, lang)}: {val:,.0f} ({share * 100:.1f}%)"
+            )
+        if not parts:
+            continue
+        size = int(28 + 36 * math.sqrt(total / max_total))
+        size = max(28, min(size, 68))
+        svg = _svg_composition_pie(parts, size)
+        html = (
+            f'<div style="width:{size}px;height:{size}px;margin-left:-{size // 2}px;'
+            f'margin-top:-{size // 2}px;">{svg}</div>'
+        )
+        tooltip = folium.Tooltip("<br>".join(hover_lines), sticky=True)
+        popup = folium.Popup("<br>".join(hover_lines), max_width=280)
+        folium.Marker(
+            location=[float(row["lat"]), float(row["lon"])],
+            icon=folium.DivIcon(html=html, icon_size=(size, size), icon_anchor=(0, 0)),
+            tooltip=tooltip,
+            popup=popup,
+        ).add_to(fmap)
+
+    # Fit bounds
+    lats = d["lat"].astype(float).tolist()
+    lons = d["lon"].astype(float).tolist()
+    if lats and lons:
+        fmap.fit_bounds([[min(lats) - 2, min(lons) - 2], [max(lats) + 2, max(lons) + 2]])
+
+    legend_rows = "".join(
+        f'<div style="margin:2px 0;"><span style="display:inline-block;width:12px;height:12px;'
+        f'background:{color};margin-right:6px;border-radius:2px;"></span>{label}</div>'
+        for label, color in legend_items
+    )
+    legend = folium.Element(
+        f"""
+        <div style="position: fixed; top: 12px; left: 50px; z-index: 9999;
+                    background: rgba(255,255,255,0.95); padding: 8px 12px;
+                    border-left: 4px solid #0072BC; border-radius: 2px;
+                    font-family: Lato, Arial, sans-serif; font-size: 13px;
+                    color: #0B3754; box-shadow: 0 1px 4px rgba(0,0,0,.12); max-width: 280px;">
+          <div style="font-weight: 700; margin-bottom: 6px;">{title}</div>
+          {legend_rows}
+        </div>
+        """
+    )
+    fmap.get_root().html.add_child(legend)
+    return fmap
 
 
 def admin2_residence_map(points: pd.DataFrame, lang: str, country_name: str) -> go.Figure:

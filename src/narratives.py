@@ -33,10 +33,37 @@ def build_overview_narrative(
     top_hosts: list[tuple[str, float]],
     top_origins: list[tuple[str, float]],
     pop_codes: list[str],
+    by_type: list[tuple[str, float]] | None = None,
+    registration: dict | None = None,
 ) -> str:
     pops = ", ".join(pop_label(c, lang) for c in pop_codes)
     hosts = ", ".join(f"{n} ({_fmt(v)})" for n, v in top_hosts[:5])
     origins = ", ".join(f"{n} ({_fmt(v)})" for n, v in top_origins[:5])
+    total = kpi.get("total") or 0
+
+    # Composition shares (inspired by regional overview dashboards; plain text, no colored figures)
+    composition = ""
+    if by_type and total:
+        bits = []
+        for code, val in by_type:
+            share = (val / total) if total else 0.0
+            bits.append(f"{pop_label(code, lang)} {_pct(share)} ({_fmt(val)})")
+        composition = "; ".join(bits)
+
+    reg_txt = ""
+    if registration:
+        reg_share = registration.get("registered_share")
+        not_share = registration.get("not_registered_share")
+        if lang == "fr":
+            reg_txt = (
+                f"\n- Enregistrement individuel REF+ASY : **{_pct(reg_share)}** enregistrés · "
+                f"**{_pct(not_share)}** non enregistrés"
+            )
+        else:
+            reg_txt = (
+                f"\n- Individual registration REF+ASY: **{_pct(reg_share)}** registered · "
+                f"**{_pct(not_share)}** not registered"
+            )
 
     if lang == "fr":
         mom_txt = (
@@ -45,13 +72,20 @@ def build_overview_narrative(
             if kpi.get("mom") is not None
             else "La variation mensuelle n'est pas disponible pour ce point de comparaison."
         )
+        comp_txt = (
+            f"\n\n**Composition par type :** {composition}."
+            if composition
+            else ""
+        )
         return (
             f"### Commentaires du mois {month}\n\n"
             f"Pour les populations sélectionnées (**{pops}**), la population totale régionale s'élève à "
             f"**{_fmt(kpi.get('total'))}** personnes dans **{kpi.get('countries', 0)}** pays d'asile, "
-            f"issues de **{kpi.get('origins', 0)}** pays/territoires d'origine.\n\n"
-            f"- Part des femmes : **{_pct(kpi.get('female_share'))}**\n"
-            f"- Part des enfants (0–17, lorsque ventilé) : **{_pct(kpi.get('children_share'))}**\n"
+            f"issues de **{kpi.get('origins', 0)}** pays/territoires d'origine."
+            f"{comp_txt}\n\n"
+            f"- % Femmes* : **{_pct(kpi.get('female_share'))}**\n"
+            f"- % Enfants* (0–17, lorsque ventilé) : **{_pct(kpi.get('children_share'))}**"
+            f"{reg_txt}\n"
             f"- {mom_txt}\n\n"
             f"**Principaux pays d'accueil :** {hosts or '—'}.\n\n"
             f"**Principaux pays d'origine :** {origins or '—'}."
@@ -63,13 +97,20 @@ def build_overview_narrative(
         if kpi.get("mom") is not None
         else "Month-on-month change is not available for this comparison point."
     )
+    comp_txt = (
+        f"\n\n**Breakdown by type:** {composition}."
+        if composition
+        else ""
+    )
     return (
         f"### Comments for {month}\n\n"
         f"For the selected populations (**{pops}**), the regional total population stands at "
         f"**{_fmt(kpi.get('total'))}** people across **{kpi.get('countries', 0)}** countries of asylum, "
-        f"from **{kpi.get('origins', 0)}** countries/territories of origin.\n\n"
-        f"- Female share: **{_pct(kpi.get('female_share'))}**\n"
-        f"- Children share (0–17, when disaggregated): **{_pct(kpi.get('children_share'))}**\n"
+        f"from **{kpi.get('origins', 0)}** countries/territories of origin."
+        f"{comp_txt}\n\n"
+        f"- % Female*: **{_pct(kpi.get('female_share'))}**\n"
+        f"- % Children* (0–17, when disaggregated): **{_pct(kpi.get('children_share'))}**"
+        f"{reg_txt}\n"
         f"- {mom_txt}\n\n"
         f"**Top host countries:** {hosts or '—'}.\n\n"
         f"**Top countries of origin:** {origins or '—'}."

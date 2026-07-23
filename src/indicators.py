@@ -401,6 +401,71 @@ def accommodation_share_ref_asy(df: pd.DataFrame) -> pd.DataFrame:
     return g.sort_values("total", ascending=False)
 
 
+def registration_share_ref_asy(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Individual registration status for REF + ASY (ActivityInfo `basis`).
+    `registration` = individually registered; all other / missing = not registered.
+    """
+    if df.empty or "basis" not in df.columns or "pop_code" not in df.columns:
+        return pd.DataFrame()
+    out = df[df["pop_code"].isin(["REF", "ASY"])].copy()
+    if out.empty:
+        return pd.DataFrame()
+    basis = out["basis"].fillna("").astype(str).str.strip().str.lower()
+    out["registration_status"] = basis.map(
+        lambda b: "registered" if b == "registration" else "not_registered"
+    )
+    g = out.groupby("registration_status", as_index=False)["total"].sum()
+    tot = float(g["total"].sum()) or 1.0
+    g["share"] = g["total"] / tot
+    return g.sort_values("total", ascending=False)
+
+
+def country_composition_geo(df: pd.DataFrame, lang: str = "fr") -> pd.DataFrame:
+    """
+    One row per asylum country with lat/lon, total, and one column per pop_code.
+    Used for composition pie markers on the map.
+    """
+    if df.empty:
+        return pd.DataFrame()
+
+    name_col = "asylum_name_fr" if lang == "fr" else "asylum_name_en"
+    if name_col not in df.columns:
+        name_col = "asylum_iso3"
+
+    group_keys = ["asylum_iso3", name_col, "pop_code"]
+    group_keys = [c for c in group_keys if c in df.columns]
+    pivot = (
+        df.groupby(group_keys, as_index=False)["total"]
+        .sum()
+        .pivot_table(
+            index=["asylum_iso3", name_col] if name_col in group_keys else ["asylum_iso3"],
+            columns="pop_code",
+            values="total",
+            aggfunc="sum",
+            fill_value=0.0,
+        )
+        .reset_index()
+    )
+    pop_cols = [c for c in pivot.columns if c not in {"asylum_iso3", name_col}]
+    pivot["total"] = pivot[pop_cols].sum(axis=1)
+    pivot = pivot.rename(columns={name_col: "country_name"})
+
+    coords = (
+        df.groupby("asylum_iso3", as_index=False)
+        .agg(lat=("asylum_lat", "first"), lon=("asylum_lon", "first"))
+        if "asylum_lat" in df.columns and "asylum_lon" in df.columns
+        else pd.DataFrame(columns=["asylum_iso3", "lat", "lon"])
+    )
+    if not coords.empty:
+        pivot = pivot.merge(coords, on="asylum_iso3", how="left")
+    else:
+        pivot["lat"] = None
+        pivot["lon"] = None
+
+    return pivot.sort_values("total", ascending=False)
+
+
 def _country_centroid(
     pop_df: pd.DataFrame,
     geoloc_df: pd.DataFrame,

@@ -48,9 +48,11 @@ adult_age_detail_bar = _charts_mod.adult_age_detail_bar
 choropleth_hosts = _charts_mod.choropleth_hosts
 corridor_map = _charts_mod.corridor_map
 forecast_lines = _charts_mod.forecast_lines
+hosts_composition_pie_map = _charts_mod.hosts_composition_pie_map
 mom_yoy_bars = _charts_mod.mom_yoy_bars
 monthly_trend_line = _charts_mod.monthly_trend_line
 psn_needs_bar = _charts_mod.psn_needs_bar
+registration_share_pie = _charts_mod.registration_share_pie
 returns_trend_line = _charts_mod.returns_trend_line
 stock_by_type_bar = _charts_mod.stock_by_type_bar
 top_bar = _charts_mod.top_bar
@@ -64,6 +66,7 @@ age_adult_detail = _indicators_mod.age_adult_detail
 age_sex_pyramid = _indicators_mod.age_sex_pyramid
 annual_stock = _indicators_mod.annual_stock
 corridor_flows = _indicators_mod.corridor_flows
+country_composition_geo = _indicators_mod.country_composition_geo
 country_pop_breakdown = _indicators_mod.country_pop_breakdown
 country_stock = _indicators_mod.country_stock
 data_quality_summary = _indicators_mod.data_quality_summary
@@ -73,6 +76,7 @@ monthly_stock = _indicators_mod.monthly_stock
 origin_stock = _indicators_mod.origin_stock
 psn_by_country = _indicators_mod.psn_by_country
 psn_by_need = _indicators_mod.psn_by_need
+registration_share_ref_asy = _indicators_mod.registration_share_ref_asy
 returns_monthly = _indicators_mod.returns_monthly
 
 from src.data_loader import (
@@ -94,6 +98,7 @@ from src.narratives import (
 )
 from src.reference_data import format_month_label
 from src.theme import APP_CSS
+from streamlit_folium import st_folium
 
 st.set_page_config(
     page_title="MSR WCA · UNHCR",
@@ -596,6 +601,28 @@ def main() -> None:
                     hide_index=True,
                 )
 
+        reg_share = registration_share_ref_asy(current)
+        if not reg_share.empty:
+            st.markdown(f"**{t('registration_ref_asy', lang)}**")
+            reg_left, reg_right = st.columns([1.2, 1])
+            with reg_left:
+                st.plotly_chart(registration_share_pie(reg_share, lang), width="stretch")
+            with reg_right:
+                order = ["registered", "not_registered"]
+                reg_sorted = reg_share.copy()
+                reg_sorted["_ord"] = reg_sorted["registration_status"].map(
+                    {k: i for i, k in enumerate(order)}
+                ).fillna(99)
+                reg_sorted = reg_sorted.sort_values("_ord")
+                for _, row in reg_sorted.iterrows():
+                    label = (
+                        t("registration_registered", lang)
+                        if row["registration_status"] == "registered"
+                        else t("registration_not_registered", lang)
+                    )
+                    st.metric(label, f"{row['share'] * 100:.1f}%", _fmt_int(row["total"]))
+                st.caption(t("registration_note", lang))
+
         with st.expander(t("data_quality", lang)):
             q = data_quality_summary(current)
             if q.empty:
@@ -646,6 +673,16 @@ def main() -> None:
             mime="text/csv",
         )
 
+        reg_for_narrative = None
+        if not reg_share.empty:
+            reg_map = {
+                r["registration_status"]: float(r["share"])
+                for _, r in reg_share.iterrows()
+            }
+            reg_for_narrative = {
+                "registered_share": reg_map.get("registered"),
+                "not_registered_share": reg_map.get("not_registered"),
+            }
         narrative = build_overview_narrative(
             lang=lang,
             month=month_label,
@@ -653,6 +690,10 @@ def main() -> None:
             top_hosts=list(zip(hosts_agg[host_label], hosts_agg["total"])),
             top_origins=list(zip(origins_agg[o_name].fillna("—"), origins_agg["total"])),
             pop_codes=pop_codes,
+            by_type=list(zip(by_type["pop_code"], by_type["total"]))
+            if not by_type.empty
+            else None,
+            registration=reg_for_narrative,
         )
         _narrative_box(narrative)
 
@@ -689,6 +730,9 @@ def main() -> None:
             st.dataframe(show, width="stretch", hide_index=True)
 
     with tab_maps:
+        composition = country_composition_geo(current, lang=lang)
+        if wca_iso3:
+            composition = composition[composition["asylum_iso3"].isin(wca_iso3)]
         breakdown = country_pop_breakdown(current, lang=lang)
         if wca_iso3:
             breakdown = breakdown[breakdown["asylum_iso3"].isin(wca_iso3)]
@@ -700,10 +744,17 @@ def main() -> None:
             corridor_src, top_n=30, wca_iso3=wca_iso3 or None, extra_external=15
         )
 
-        st.plotly_chart(
-            choropleth_hosts(breakdown, lang, wca_iso3=wca_iso3 or None),
-            width="stretch",
+        st.caption(t("composition_map", lang))
+        pie_map = hosts_composition_pie_map(
+            composition, lang, wca_iso3=wca_iso3 or None
         )
+        st_folium(pie_map, width=None, height=540, returned_objects=[])
+
+        with st.expander(t("choropleth", lang)):
+            st.plotly_chart(
+                choropleth_hosts(breakdown, lang, wca_iso3=wca_iso3 or None),
+                width="stretch",
+            )
         st.plotly_chart(corridor_map(flows, lang), width="stretch")
 
     with tab_territory:

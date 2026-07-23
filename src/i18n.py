@@ -61,8 +61,8 @@ STRINGS = {
     "kpi_ref_asy": {"fr": "REF + ASY", "en": "REF + ASY"},
     "kpi_idp": {"fr": "PDI", "en": "IDPs"},
     "kpi_sta": {"fr": "Apatrides", "en": "Stateless"},
-    "kpi_female": {"fr": "Part femmes*", "en": "Female share*"},
-    "kpi_children": {"fr": "Part enfants*", "en": "Children share*"},
+    "kpi_female": {"fr": "% Femmes*", "en": "% Female*"},
+    "kpi_children": {"fr": "% Enfants*", "en": "% Children*"},
     "kpi_mom": {"fr": "Variation MoM", "en": "MoM change"},
     "kpi_hosts": {"fr": "Pays d'asile", "en": "Host countries"},
     "kpi_note_demog": {
@@ -89,6 +89,26 @@ STRINGS = {
     "choropleth": {
         "fr": "Population totale par pays d'asile (WCA)",
         "en": "Total population by country of asylum (WCA)",
+    },
+    "composition_map": {
+        "fr": "Composition par type (camemberts — pays d'asile WCA)",
+        "en": "Composition by type (pie markers — WCA host countries)",
+    },
+    "registration_ref_asy": {
+        "fr": "Enregistrement REF + ASY",
+        "en": "REF + ASY registration",
+    },
+    "registration_registered": {
+        "fr": "Enregistrés individuellement",
+        "en": "Individually registered",
+    },
+    "registration_not_registered": {
+        "fr": "Non enregistrés individuellement",
+        "en": "Not individually registered",
+    },
+    "registration_note": {
+        "fr": "Basé sur le champ ActivityInfo « basis » : registration = enregistré individuellement ; autres bases (estimate, census, pre-registration, survey…) = non enregistré individuellement.",
+        "en": "Based on the ActivityInfo “basis” field: registration = individually registered; other bases (estimate, census, pre-registration, survey…) = not individually registered.",
     },
     "corridors": {
         "fr": "Corridors REF / ASY (origine → asile)",
