@@ -511,6 +511,100 @@ def _country_centroid(
     return None
 
 
+def admin1_map_points(
+    pop_df: pd.DataFrame,
+    geoloc_df: pd.DataFrame,
+    asylum_iso3: str,
+    countries_df: pd.DataFrame | None = None,
+) -> pd.DataFrame:
+    """
+    Map points for a host country profile at Admin1 level.
+
+    Aggregate by Admin1 × population type, geocode via Admin1 centroids,
+    fall back to country centroid when Admin1 coords are missing.
+    """
+    if pop_df.empty:
+        return pd.DataFrame()
+
+    focus = pop_df[pop_df["asylum_iso3"] == asylum_iso3].copy()
+    if focus.empty:
+        return pd.DataFrame()
+
+    preferred = focus[focus["pop_code"].isin(["REF", "ASY", "IDP", "STA"])]
+    focus = preferred if not preferred.empty else focus
+
+    geo = geoloc_df.copy() if geoloc_df is not None and not geoloc_df.empty else pd.DataFrame()
+    if not geo.empty and "iso3" in geo.columns:
+        geo = geo[geo["iso3"].astype(str).str.upper() == str(asylum_iso3).upper()]
+    g1 = (
+        geo[geo["level"] == "admin1"].copy()
+        if not geo.empty and "level" in geo.columns
+        else pd.DataFrame()
+    )
+    country_xy = _country_centroid(focus, geoloc_df, asylum_iso3, countries_df)
+    country_lat = country_xy[0] if country_xy else None
+    country_lon = country_xy[1] if country_xy else None
+
+    def _match_name(frame: pd.DataFrame, col: str, name: object) -> pd.DataFrame:
+        if frame.empty or col not in frame.columns or name is None or pd.isna(name):
+            return pd.DataFrame()
+        return frame[
+            frame[col].astype(str).str.strip().str.lower() == str(name).strip().lower()
+        ]
+
+    rows: list[dict] = []
+    by_a1 = (
+        focus.dropna(subset=["coa_admin1"])
+        .groupby(["coa_admin1", "pop_code"], as_index=False)["total"]
+        .sum()
+    )
+    for _, r in by_a1.iterrows():
+        match1 = _match_name(g1, "admin1_name", r["coa_admin1"])
+        if not match1.empty:
+            lat = float(match1.iloc[0]["latitude"])
+            lon = float(match1.iloc[0]["longitude"])
+            geo_level = "admin1"
+        elif country_lat is not None:
+            lat, lon = country_lat, country_lon
+            geo_level = "country"
+        else:
+            continue
+        rows.append(
+            {
+                "label": f"{r['coa_admin1']} ({r['pop_code']})",
+                "admin2": None,
+                "admin1": r["coa_admin1"],
+                "pop_code": r["pop_code"],
+                "total": r["total"],
+                "lat": lat,
+                "lon": lon,
+                "geo_level": geo_level,
+            }
+        )
+
+    if rows:
+        return pd.DataFrame(rows).sort_values("total", ascending=False)
+
+    # Last resort: one bubble per pop type at country centroid
+    if country_lat is None:
+        return pd.DataFrame()
+    by_pop = focus.groupby("pop_code", as_index=False)["total"].sum()
+    for _, r in by_pop.iterrows():
+        rows.append(
+            {
+                "label": f"{asylum_iso3} ({r['pop_code']})",
+                "admin2": None,
+                "admin1": None,
+                "pop_code": r["pop_code"],
+                "total": r["total"],
+                "lat": country_lat,
+                "lon": country_lon,
+                "geo_level": "country",
+            }
+        )
+    return pd.DataFrame(rows).sort_values("total", ascending=False) if rows else pd.DataFrame()
+
+
 def admin2_map_points(
     pop_df: pd.DataFrame,
     geoloc_df: pd.DataFrame,
@@ -601,56 +695,8 @@ def admin2_map_points(
     if rows:
         return pd.DataFrame(rows).sort_values("total", ascending=False)
 
-    by_a1 = (
-        focus.dropna(subset=["coa_admin1"])
-        .groupby(["coa_admin1", "pop_code"], as_index=False)["total"]
-        .sum()
-    )
-    for _, r in by_a1.iterrows():
-        match1 = _match_name(g1, "admin1_name", r["coa_admin1"])
-        if not match1.empty:
-            lat = float(match1.iloc[0]["latitude"])
-            lon = float(match1.iloc[0]["longitude"])
-            geo_level = "admin1"
-        elif country_lat is not None:
-            lat, lon = country_lat, country_lon
-            geo_level = "country"
-        else:
-            continue
-        rows.append(
-            {
-                "label": f"{r['coa_admin1']} ({r['pop_code']})",
-                "admin2": None,
-                "admin1": r["coa_admin1"],
-                "pop_code": r["pop_code"],
-                "total": r["total"],
-                "lat": lat,
-                "lon": lon,
-                "geo_level": geo_level,
-            }
-        )
-
-    if rows:
-        return pd.DataFrame(rows).sort_values("total", ascending=False)
-
-    # Last resort: one bubble per pop type at country centroid
-    if country_lat is None:
-        return pd.DataFrame()
-    by_pop = focus.groupby("pop_code", as_index=False)["total"].sum()
-    for _, r in by_pop.iterrows():
-        rows.append(
-            {
-                "label": f"{asylum_iso3} ({r['pop_code']})",
-                "admin2": None,
-                "admin1": None,
-                "pop_code": r["pop_code"],
-                "total": r["total"],
-                "lat": country_lat,
-                "lon": country_lon,
-                "geo_level": "country",
-            }
-        )
-    return pd.DataFrame(rows).sort_values("total", ascending=False) if rows else pd.DataFrame()
+    # Fall back to Admin1 aggregation
+    return admin1_map_points(pop_df, geoloc_df, asylum_iso3, countries_df)
 
 
 def country_pop_breakdown(df: pd.DataFrame, lang: str = "fr") -> pd.DataFrame:

@@ -58,6 +58,7 @@ stock_by_type_bar = _charts_mod.stock_by_type_bar
 top_bar = _charts_mod.top_bar
 
 admin1_stock = _indicators_mod.admin1_stock
+admin1_map_points = _indicators_mod.admin1_map_points
 admin2_map_points = _indicators_mod.admin2_map_points
 admin2_stock = _indicators_mod.admin2_stock
 accommodation_share_ref_asy = _indicators_mod.accommodation_share_ref_asy
@@ -783,7 +784,7 @@ def main() -> None:
             k3.metric(t("kpi_idp", lang), _fmt_int(c_kpi.get("idp")))
             k4.metric(t("kpi_mom", lang), _fmt_pct(c_kpi.get("mom")))
 
-            points = admin2_map_points(
+            points = admin1_map_points(
                 country_df, geoloc, profile_iso, countries_df=countries
             )
             st.plotly_chart(
@@ -798,9 +799,9 @@ def main() -> None:
                 )
             elif "geo_level" in points.columns and (points["geo_level"] == "country").all():
                 st.caption(
-                    "Localisation approximative au centroïde du pays (Admin1/2 indisponibles)."
+                    "Localisation approximative au centroïde du pays (Admin1 indisponible)."
                     if lang == "fr"
-                    else "Approximate location at country centroid (Admin1/2 unavailable)."
+                    else "Approximate location at country centroid (Admin1 unavailable)."
                 )
 
             c_by_type = (

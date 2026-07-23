@@ -998,9 +998,9 @@ def hosts_composition_pie_map(
 
 def admin2_residence_map(points: pd.DataFrame, lang: str, country_name: str) -> go.Figure:
     title = (
-        f"Residence areas — {country_name}"
+        f"Residence areas (Admin1) — {country_name}"
         if lang == "en"
-        else f"Zones de résidence — {country_name}"
+        else f"Zones de résidence (Admin1) — {country_name}"
     )
     if points is None or points.empty:
         fig = go.Figure()
