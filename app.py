@@ -31,6 +31,9 @@ for _mod_name in (
     "src.forecasting",
     "src.reports",
     "src.data_loader",
+    "src.auth",
+    "src.audit",
+    "src.assistant",
 ):
     if _mod_name in sys.modules:
         importlib.reload(sys.modules[_mod_name])
@@ -402,8 +405,23 @@ def main() -> None:
 
     lang = _language_selector()
 
+    from src.auth import (
+        apply_role_host_filter,
+        render_user_badge,
+        require_auth,
+    )
+    from src.audit import log_event, read_recent_events
+
+    user = require_auth(lang)
+
     if LOGO_PATH.exists():
         st.sidebar.image(str(LOGO_PATH), width=160)
+    render_user_badge(lang, user)
+    st.sidebar.markdown(f"**{t('guided_title', lang)}**")
+    st.sidebar.caption(t("guided_1", lang))
+    st.sidebar.caption(t("guided_2", lang))
+    st.sidebar.caption(t("guided_3", lang))
+    st.sidebar.caption(t("guided_4", lang))
     st.sidebar.markdown(f"**{t('filters', lang)}**")
 
     _render_header(lang)
@@ -509,6 +527,14 @@ def main() -> None:
         default=[],
         format_func=lambda c: host_map.get(c, c),
     )
+    selected_hosts = apply_role_host_filter(
+        selected_hosts, user, host_options["asylum_iso3"].tolist()
+    )
+    if user.get("role") == "country" and user.get("countries"):
+        st.sidebar.caption(
+            ("Périmètre pays : " if lang == "fr" else "Country scope: ")
+            + ", ".join(user["countries"])
+        )
 
     origin_options = (
         base[["origin_hcr3", "origin_name_en", "origin_name_fr"]]
@@ -553,6 +579,7 @@ def main() -> None:
         tab_territory,
         tab_shelter,
         tab_reports,
+        tab_assistant,
         tab_forecast,
         tab_about,
     ) = st.tabs(
@@ -563,12 +590,14 @@ def main() -> None:
             t("territory", lang),
             t("shelter_psn", lang),
             t("reports", lang),
+            t("assistant", lang),
             t("forecast", lang),
             t("about", lang),
         ]
     )
 
     with tab_overview:
+        st.info(t("guided_hint_overview", lang))
         q_items = quality_banner_items(
             current,
             pop[pop["year_month"] == month] if "year_month" in pop.columns else None,
@@ -706,6 +735,7 @@ def main() -> None:
         _narrative_box(narrative)
 
     with tab_trends:
+        st.info(t("guided_hint_trends", lang))
         monthly = monthly_stock(filtered_all)
         trend = mom_yoy(monthly, pop_codes=pop_codes)
         st.plotly_chart(monthly_trend_line(monthly, lang), width="stretch")
@@ -756,6 +786,7 @@ def main() -> None:
         st.plotly_chart(corridor_map(flows, lang), width="stretch")
 
     with tab_territory:
+        st.info(t("guided_hint_territory", lang))
         profile_options = host_options["asylum_iso3"].tolist()
         profile_iso = st.selectbox(
             t("select_country", lang),
@@ -962,6 +993,7 @@ def main() -> None:
     with tab_reports:
         from src.reports import BUILDERS, REPORT_CATALOG
 
+        st.info(t("guided_hint_reports", lang))
         st.caption(t("reports_intro", lang))
         report_country = st.selectbox(
             t("report_country", lang),
@@ -1048,19 +1080,103 @@ def main() -> None:
                     ):
                         try:
                             st.session_state[pdf_key] = _build_report(rid)
+                            log_event(
+                                "pdf_generate",
+                                user=user,
+                                details={
+                                    "report": rid,
+                                    "month": month,
+                                    "country": report_country or None,
+                                },
+                            )
                         except Exception as exc:  # noqa: BLE001
                             st.session_state.pop(pdf_key, None)
                             st.error(f"{meta['title'][lang]}: {exc}")
                 with c2:
                     if pdf_key in st.session_state and st.session_state[pdf_key]:
-                        st.download_button(
+                        if st.download_button(
                             t("download_pdf", lang),
                             data=st.session_state[pdf_key],
                             file_name=f"msr_wca_{rid}_{month}.pdf",
                             mime="application/pdf",
                             key=f"dl_{rid}",
-                        )
+                        ):
+                            log_event(
+                                "pdf_download",
+                                user=user,
+                                details={
+                                    "report": rid,
+                                    "month": month,
+                                    "country": report_country or None,
+                                },
+                            )
             st.markdown("---")
+
+        if user.get("role") == "admin":
+            with st.expander(t("audit_title", lang)):
+                events = read_recent_events(40)
+                if not events:
+                    st.caption("—")
+                else:
+                    st.dataframe(pd.DataFrame(events), width="stretch", hide_index=True)
+
+    with tab_assistant:
+        from src.assistant import AssistantContext, answer_question
+
+        st.caption(t("assistant_intro", lang))
+        if "assistant_messages" not in st.session_state:
+            st.session_state.assistant_messages = []
+
+        for msg in st.session_state.assistant_messages:
+            with st.chat_message(msg["role"]):
+                st.markdown(msg["content"])
+                if msg.get("meta"):
+                    st.caption(msg["meta"])
+
+        prompt = st.chat_input(t("assistant_placeholder", lang))
+        if prompt:
+            st.session_state.assistant_messages.append(
+                {"role": "user", "content": prompt}
+            )
+            ctx = AssistantContext(
+                lang=lang,
+                month=month,
+                month_label=month_label,
+                compare_month=compare_month,
+                current=current,
+                previous=previous,
+                pop_codes=pop_codes,
+                host_map=host_map,
+                data_version=data_version_line,
+            )
+            reply = answer_question(prompt, ctx)
+            meta = t("assistant_grounded", lang) if reply.grounded else ""
+            if reply.intent:
+                meta = (meta + f" · {reply.intent}").strip(" ·")
+            st.session_state.assistant_messages.append(
+                {
+                    "role": "assistant",
+                    "content": reply.text,
+                    "meta": meta,
+                }
+            )
+            log_event(
+                "assistant_ask",
+                user=user,
+                details={
+                    "intent": reply.intent,
+                    "grounded": reply.grounded,
+                    "month": month,
+                    "q": prompt[:200],
+                },
+            )
+            st.rerun()
+
+        if st.session_state.assistant_messages and st.button(
+            t("assistant_clear", lang), key="assistant_clear_btn"
+        ):
+            st.session_state.assistant_messages = []
+            st.rerun()
 
     with tab_forecast:
         st.info(t("forecast_disclaimer", lang))

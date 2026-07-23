@@ -36,16 +36,21 @@ Outil de référence MSR WCA : chiffres opposables, gouvernance, PDF institution
 - [ ] Réconciliation vs totaux de référence externes (si source dispo)
 
 ### Phase 2 — Produit + gouvernance
-- Auth institutionnelle (SSO / Azure AD) sur staging
-- Rôles lecteur / pays / admin DIMA
-- Audit exports PDF
-- PDF “publication” + parcours Flash → Pays → Tendance → Rapports
+- [x] Auth configurable (password / users / OIDC prêt Azure AD) — `src/auth.py`
+- [x] Rôles lecteur / pays / admin (+ filtre pays)
+- [x] Audit exports PDF (+ journal admin) — `src/audit.py`
+- [x] PDF couverture institutionnelle (sources + avertissement)
+- [x] Parcours guidé Flash → Pays → Tendance → Rapports
+- [x] Exemple secrets : `.streamlit/secrets.toml.example`
+- [ ] SSO Azure AD branché en réel sur le staging (config tenant UNHCR)
 
 ### Phase 3 — Assistant AI (MVP)
-- Chat FR/EN dans l’app staging
-- Outils → `indicators` / filtres session (chiffres = code, pas LLM)
-- RAG glossaire + méthodo + aide navigation
-- Garde-fous : pas de raw ActivityInfo au LLM ; refus hors périmètre ; logs
+- [x] Chat FR/EN (onglet Assistant)
+- [x] Outils → indicateurs / filtres session (chiffres = code)
+- [x] Aide navigation + glossaire
+- [x] Garde-fous : pas d’invention numérique ; refus hors périmètre ; audit questions
+- [x] LLM optionnel (`ASSISTANT_LLM=on`) pour reformuler uniquement
+- [ ] Évaluation qualité sur jeu de questions de référence (DIMA)
 
 ### Phase 4 — Validation puis bascule prod
 - Recette staging complète

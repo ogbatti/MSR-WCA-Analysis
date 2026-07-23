@@ -170,12 +170,19 @@ def _font_paths() -> tuple[str | None, str | None]:
 
 class MsrPdf(FPDF):
     def __init__(
-        self, lang: str, report_title: str, data_version: str | None = None
+        self,
+        lang: str,
+        report_title: str,
+        data_version: str | None = None,
+        month_label: str | None = None,
+        with_cover: bool = True,
     ) -> None:
         super().__init__(format="A4")
         self.lang = lang
         self.report_title = report_title
         self.data_version = data_version or ""
+        self.month_label = month_label or ""
+        self._skip_header = False
         self.set_auto_page_break(auto=True, margin=18)
         reg, bold = _font_paths()
         if reg:
@@ -184,9 +191,13 @@ class MsrPdf(FPDF):
             self.font_family = "Body"
         else:
             self.font_family = "Helvetica"
+        if with_cover:
+            self.write_cover()
         self.add_page()
 
     def header(self) -> None:
+        if self._skip_header:
+            return
         self.set_font(self.font_family, "B", 10)
         self.set_text_color(0, 114, 188)
         self.cell(0, 6, "UNHCR · RBWCA · DIMA · MSR WCA", ln=True)
@@ -201,6 +212,87 @@ class MsrPdf(FPDF):
         self.set_line_width(0.4)
         self.line(10, self.get_y(), 200, self.get_y())
         self.ln(6)
+
+    def write_cover(self) -> None:
+        """Institutional cover page: title, month, sources, disclaimer."""
+        self._skip_header = True
+        self.add_page()
+        self.set_y(48)
+        self.set_font(self.font_family, "B", 11)
+        self.set_text_color(0, 114, 188)
+        self.multi_cell(0, 7, "UNHCR · RBWCA · DIMA", align="C")
+        self.ln(6)
+        self.set_font(self.font_family, "B", 18)
+        self.set_text_color(11, 55, 84)
+        self.multi_cell(0, 10, self.report_title, align="C")
+        self.ln(4)
+        if self.month_label:
+            self.set_font(self.font_family, "", 12)
+            self.set_text_color(38, 38, 38)
+            label = "Reference month" if self.lang == "en" else "Mois de référence"
+            self.multi_cell(0, 7, f"{label} : {self.month_label}", align="C")
+        self.ln(8)
+        self.set_draw_color(0, 114, 188)
+        self.set_line_width(0.6)
+        y = self.get_y()
+        self.line(60, y, 150, y)
+        self.ln(10)
+        self.set_font(self.font_family, "B", 10)
+        self.set_text_color(0, 114, 188)
+        self.multi_cell(0, 6, "Sources" if self.lang == "en" else "Sources")
+        self.set_font(self.font_family, "", 9)
+        self.set_text_color(38, 38, 38)
+        if self.lang == "fr":
+            self.multi_cell(
+                0,
+                5,
+                "ActivityInfo — base « WCA DIMA Statistics & Analysis », formulaire population. "
+                "Agrégation : priorité detailed, bascule total par type si nécessaire.",
+            )
+        else:
+            self.multi_cell(
+                0,
+                5,
+                "ActivityInfo — “WCA DIMA Statistics & Analysis” database, population form. "
+                "Aggregation: prefer detailed, fall back to total per type when needed.",
+            )
+        if self.data_version:
+            self.ln(2)
+            self.set_font(self.font_family, "", 8)
+            self.set_text_color(80, 80, 80)
+            self.multi_cell(0, 4.5, self.data_version)
+        self.ln(8)
+        self.set_font(self.font_family, "B", 10)
+        self.set_text_color(0, 114, 188)
+        self.multi_cell(0, 6, "Disclaimer" if self.lang == "en" else "Avertissement")
+        self.set_font(self.font_family, "", 9)
+        self.set_text_color(38, 38, 38)
+        if self.lang == "fr":
+            self.multi_cell(
+                0,
+                5,
+                "Document généré automatiquement pour usage interne DIMA / RBWCA. "
+                "Les chiffres reflètent l'extrait ActivityInfo indiqué ci-dessus et les filtres "
+                "appliqués lors de la génération. Ne pas diffuser hors circuit validé sans revue.",
+            )
+        else:
+            self.multi_cell(
+                0,
+                5,
+                "Document generated automatically for internal DIMA / RBWCA use. "
+                "Figures reflect the ActivityInfo extract above and filters applied at generation. "
+                "Do not circulate outside validated channels without review.",
+            )
+        self.ln(12)
+        self.set_font(self.font_family, "", 8)
+        self.set_text_color(120, 120, 120)
+        self.multi_cell(
+            0,
+            5,
+            f"Generated {date.today().isoformat()} · © UNHCR",
+            align="C",
+        )
+        self._skip_header = False
 
     def footer(self) -> None:
         self.set_y(-12)
@@ -524,7 +616,7 @@ def build_flash_pdf(
     data_version: str | None = None,
 ) -> bytes:
     title = REPORT_CATALOG[0]["title"][lang]
-    pdf = MsrPdf(lang, title, data_version=data_version)
+    pdf = MsrPdf(lang, title, data_version=data_version, month_label=month_label)
     pdf.h1(title)
     pdf.p(
         f"{'Reference month' if lang == 'en' else 'Mois de référence'} : {month_label}"
@@ -629,7 +721,12 @@ def build_country_pdf(
     data_version: str | None = None,
 ) -> bytes:
     title = REPORT_CATALOG[1]["title"][lang]
-    pdf = MsrPdf(lang, f"{title} — {country_name}", data_version=data_version)
+    pdf = MsrPdf(
+        lang,
+        f"{title} — {country_name}",
+        data_version=data_version,
+        month_label=month_label,
+    )
     pdf.h1(f"{title} — {country_name}")
     pdf.p(f"{'Month' if lang == 'en' else 'Mois'} : {month_label}")
     cdf = current[current["asylum_iso3"] == country_iso3]
@@ -861,7 +958,7 @@ def build_corridors_pdf(
     data_version: str | None = None,
 ) -> bytes:
     title = REPORT_CATALOG[3]["title"][lang]
-    pdf = MsrPdf(lang, title, data_version=data_version)
+    pdf = MsrPdf(lang, title, data_version=data_version, month_label=month_label)
     pdf.h1(title)
     pdf.p(f"{'Month' if lang == 'en' else 'Mois'} : {month_label}")
     src = current[current["pop_code"].isin(["REF", "ASY"])]
@@ -1017,7 +1114,7 @@ def build_shelter_pdf(
     data_version: str | None = None,
 ) -> bytes:
     title = REPORT_CATALOG[5]["title"][lang]
-    pdf = MsrPdf(lang, title, data_version=data_version)
+    pdf = MsrPdf(lang, title, data_version=data_version, month_label=month_label)
     pdf.h1(title)
     pdf.p(f"{'Month' if lang == 'en' else 'Mois'} : {month_label}")
     share = accommodation_share_ref_asy(current)
@@ -1117,7 +1214,7 @@ def build_psn_pdf(
     data_version: str | None = None,
 ) -> bytes:
     title = REPORT_CATALOG[6]["title"][lang]
-    pdf = MsrPdf(lang, title, data_version=data_version)
+    pdf = MsrPdf(lang, title, data_version=data_version, month_label=month_label)
     pdf.h1(title)
     pdf.p(f"{'Month' if lang == 'en' else 'Mois'} : {month_label}")
     pdf.p(

@@ -160,6 +160,64 @@ STRINGS = {
         "fr": "Environnement de validation (develop / staging) — la production n’est pas modifiée.",
         "en": "Validation environment (develop / staging) — production is unchanged.",
     },
+    "guided_title": {
+        "fr": "Parcours recommandé",
+        "en": "Recommended path",
+    },
+    "guided_1": {
+        "fr": "1. Flash — Vue d’ensemble (KPI du mois)",
+        "en": "1. Flash — Overview (month KPIs)",
+    },
+    "guided_2": {
+        "fr": "2. Fiche pays — zoom asile / Admin",
+        "en": "2. Country profile — asylum / Admin zoom",
+    },
+    "guided_3": {
+        "fr": "3. Tendances — MoM et retours",
+        "en": "3. Trends — MoM and returnees",
+    },
+    "guided_4": {
+        "fr": "4. Rapports — PDF institutionnels",
+        "en": "4. Reports — institutional PDFs",
+    },
+    "guided_hint_overview": {
+        "fr": "Étape 1/4 — Validez les KPI et la qualité, puis ouvrez la fiche pays.",
+        "en": "Step 1/4 — Validate KPIs and quality, then open the country profile.",
+    },
+    "guided_hint_territory": {
+        "fr": "Étape 2/4 — Explorez un pays, puis passez aux tendances.",
+        "en": "Step 2/4 — Explore a country, then move to trends.",
+    },
+    "guided_hint_trends": {
+        "fr": "Étape 3/4 — Analysez l’évolution, puis générez les PDF.",
+        "en": "Step 3/4 — Review the evolution, then generate PDFs.",
+    },
+    "guided_hint_reports": {
+        "fr": "Étape 4/4 — Générez et téléchargez les rapports (audit enregistré).",
+        "en": "Step 4/4 — Generate and download reports (audit logged).",
+    },
+    "audit_title": {
+        "fr": "Journal d’audit (exports)",
+        "en": "Audit log (exports)",
+    },
+    "assistant": {
+        "fr": "Assistant",
+        "en": "Assistant",
+    },
+    "assistant_intro": {
+        "fr": "Posez une question sur les effectifs du mois filtré, le MoM, les tops pays, l’hébergement REF/ASY, le glossaire ou l’utilisation de l’app. Les chiffres viennent des calculs MSR — pas d’invention.",
+        "en": "Ask about filtered-month figures, MoM, top countries, REF/ASY accommodation, the glossary, or how to use the app. Figures come from MSR calculations — nothing is invented.",
+    },
+    "assistant_placeholder": {
+        "fr": "Ex. Combien de REF+ASY ce mois ? / Que signifie MoM ?",
+        "en": "E.g. How many REF+ASY this month? / What does MoM mean?",
+    },
+    "assistant_send": {"fr": "Envoyer", "en": "Send"},
+    "assistant_clear": {"fr": "Effacer la conversation", "en": "Clear conversation"},
+    "assistant_grounded": {
+        "fr": "Réponse ancrée sur les données chargées",
+        "en": "Answer grounded in loaded data",
+    },
 }
 
 
