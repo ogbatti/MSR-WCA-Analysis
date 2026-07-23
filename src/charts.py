@@ -124,6 +124,7 @@ def _add_wca_region_layer(fmap: folium.Map, wca_iso3: list[str] | None) -> None:
             sticky=False,
         ),
         smooth_factor=1.2,
+        zoom_on_click=False,
     ).add_to(fmap)
 
     # Stronger contour only for WCA countries (outline on top)
@@ -143,6 +144,7 @@ def _add_wca_region_layer(fmap: folium.Map, wca_iso3: list[str] | None) -> None:
                 "opacity": 0.95,
             },
             interactive=False,
+            zoom_on_click=False,
         ).add_to(fmap)
 
 
@@ -884,6 +886,25 @@ def hosts_composition_pie_map(
         zoom_start=4,
         tiles="CartoDB positron",
         control_scale=True,
+    )
+    # Prevent browser/Leaflet rectangular focus ring when clicking countries or pies
+    fmap.get_root().header.add_child(
+        folium.Element(
+            """
+            <style>
+              .leaflet-container path:focus,
+              .leaflet-container path:focus-visible,
+              .leaflet-interactive:focus,
+              .leaflet-interactive:focus-visible,
+              .leaflet-marker-icon:focus,
+              .leaflet-marker-icon:focus-visible,
+              .leaflet-marker-icon:active {
+                outline: none !important;
+                box-shadow: none !important;
+              }
+            </style>
+            """
+        )
     )
     _add_wca_region_layer(fmap, wca_iso3)
     if d.empty:
