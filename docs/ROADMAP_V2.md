@@ -1,0 +1,110 @@
+# MSR WCA — Roadmap v2 (institutionnel 9/10 + AI)
+
+## Règle d’or — production gelée
+
+| Environnement | Branche Git | Déploiement |
+|---------------|-------------|-------------|
+| **Production** (existante) | `master` uniquement | Streamlit Cloud actuel + `dimawca.app` |
+| **Staging / v2** | `develop` | 2ᵉ app Streamlit Cloud (à créer) |
+
+- **Aucun merge `develop` → `master`** tant que la checklist de validation n’est pas signée.
+- Les évolutions “9/10” et l’assistant AI se font **uniquement sur `develop`** (et staging).
+- La prod actuelle reste telle quelle pour les utilisateurs.
+
+---
+
+## Objectif
+
+Outil de référence MSR WCA : chiffres opposables, gouvernance, PDF institutionnels, assistant AI branché sur les **mêmes calculs** que le dashboard.
+
+---
+
+## Phases
+
+### Phase 0 — Isolation (en cours)
+- [x] Branche `develop`
+- [ ] App Streamlit Cloud **staging** pointant sur `develop`
+- [x] Ce document + checklist go-live
+- [ ] Secrets staging (`ACTIVITYINFO_TOKEN`, plus tard clé LLM)
+
+### Phase 1 — Confiance dans les données
+- Version / horodatage extrait ActivityInfo (UI + PDF)
+- Tests automatiques agrégation (detailed/total, types)
+- Bandeau qualité (couverture sexe/âge, pays incomplets)
+- Alertes d’écarts vs totaux de référence
+
+### Phase 2 — Produit + gouvernance
+- Auth institutionnelle (SSO / Azure AD) sur staging
+- Rôles lecteur / pays / admin DIMA
+- Audit exports PDF
+- PDF “publication” + parcours Flash → Pays → Tendance → Rapports
+
+### Phase 3 — Assistant AI (MVP)
+- Chat FR/EN dans l’app staging
+- Outils → `indicators` / filtres session (chiffres = code, pas LLM)
+- RAG glossaire + méthodo + aide navigation
+- Garde-fous : pas de raw ActivityInfo au LLM ; refus hors périmètre ; logs
+
+### Phase 4 — Validation puis bascule prod
+- Recette staging complète
+- Checklist signée (ci-dessous)
+- Merge `develop` → `master` + déploiement prod
+- Option : feature flag AI au début en prod
+
+---
+
+## Créer l’app staging (manuel — compte Streamlit)
+
+1. Aller sur [share.streamlit.io](https://share.streamlit.io)
+2. **New app** → repo `ogbatti/MSR-WCA-Analysis`
+3. **Branch :** `develop` (pas `master`)
+4. Main file : `app.py`
+5. Nom suggéré : `dimawca-staging` → URL du type `dimawca-staging.streamlit.app`
+6. Secrets : reprendre `ACTIVITYINFO_TOKEN` (comme la prod)
+7. **Ne pas** brancher le domaine `dimawca.app` sur cette app
+
+---
+
+## Checklist validation go-live (avant merge vers `master`)
+
+### Données
+- [ ] Flash / fiche pays reconnus comme référence mensuelle (DIMA)
+- [ ] Version des données visible et cohérente UI ↔ PDF
+- [ ] Tests agrégation verts en CI
+- [ ] Bandeau qualité compris et utile
+
+### Produit
+- [ ] Parcours Flash → Pays → Tendance → PDF validé
+- [ ] PDF utilisable en briefing sans reprise lourde
+- [ ] Auth + rôles OK sur staging
+- [ ] Audit minimal des exports
+
+### AI
+- [ ] Jeu de questions de référence : **0 invention numérique**
+- [ ] Aide navigation / glossaire utile
+- [ ] Hors périmètre → refus clair
+- [ ] Pas d’envoi de données brutes sensibles au LLM
+
+### Ops
+- [ ] Staging stable ; rollback documenté
+- [ ] Décision formelle DIMA (+ métier si besoin)
+- [ ] Plan de bascule `develop` → `master` communiqué
+
+**Signataires (noms / dates) :**
+
+| Rôle | Nom | Date | OK |
+|------|-----|------|-----|
+| DIMA | | | |
+| Métier / RBWCA | | | |
+| Technique | | | |
+
+---
+
+## Workflow Git au quotidien
+
+```text
+master   = prod figée
+develop  = seule branche de travail v2
+feature/* (optionnel) → PR vers develop
+develop → master     = uniquement après checklist
+```
