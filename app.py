@@ -180,7 +180,7 @@ def _inject_brand() -> None:
 
 def _render_header(lang: str) -> None:
     logo = _logo_data_uri()
-    kicker = "REGIONAL BUREAU FOR THE WEST AND CENTRAL AFRICA - DIMA"
+    kicker = "REGIONAL BUREAU FOR WEST AND CENTRAL AFRICA - DIMA"
     img = f'<img src="{logo}" alt="UNHCR logo" />' if logo else ""
     st.markdown(
         f"""
