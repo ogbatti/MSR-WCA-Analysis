@@ -27,6 +27,8 @@ def _setting(name: str, default: str = "") -> str:
 
 
 ACTIVITYINFO_TOKEN = _setting("ACTIVITYINFO_TOKEN", "")
+# "staging" on develop branch apps; set to "prod" only when merging to master
+APP_CHANNEL = _setting("MSR_CHANNEL", "staging")
 ACTIVITYINFO_BASE_URL = _setting(
     "ACTIVITYINFO_BASE_URL", "https://www.activityinfo.org/resources"
 ).rstrip("/")

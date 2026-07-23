@@ -124,6 +124,42 @@ STRINGS = {
         "fr": "Impossible de charger les données ActivityInfo. Vérifiez le token et le réseau.",
         "en": "Unable to load ActivityInfo data. Check the token and network.",
     },
+    "data_version_title": {
+        "fr": "Version des données",
+        "en": "Data version",
+    },
+    "quality_banner_title": {
+        "fr": "Qualité des données (mois filtré)",
+        "en": "Data quality (filtered month)",
+    },
+    "quality_empty": {
+        "fr": "Aucune donnée pour évaluer la qualité sur la sélection actuelle.",
+        "en": "No data to assess quality for the current selection.",
+    },
+    "quality_low_sex": {
+        "fr": "{pop_code} : couverture sexe faible ({pct} %). Les parts démographiques sont à interpréter avec prudence.",
+        "en": "{pop_code}: low sex coverage ({pct}%). Treat demographic shares with caution.",
+    },
+    "quality_agg_total": {
+        "fr": "{pop_code} : agrégation « total » utilisée (pas de detailed disponible).",
+        "en": "{pop_code}: using “total” aggregation (no detailed available).",
+    },
+    "quality_agg_total_ok": {
+        "fr": "{pop_code} : reporté au niveau « total » (attendu pour ce type).",
+        "en": "{pop_code}: reported at “total” level (expected for this type).",
+    },
+    "quality_agg_gap": {
+        "fr": "{pop_code} : écart detailed vs total de {pct} % sur le mois — vérifier la source.",
+        "en": "{pop_code}: detailed vs total gap of {pct}% this month — check the source.",
+    },
+    "quality_ok": {
+        "fr": "Aucun signal d’alerte majeur sur la sélection actuelle.",
+        "en": "No major quality alerts for the current selection.",
+    },
+    "channel_staging": {
+        "fr": "Environnement de validation (develop / staging) — la production n’est pas modifiée.",
+        "en": "Validation environment (develop / staging) — production is unchanged.",
+    },
 }
 
 

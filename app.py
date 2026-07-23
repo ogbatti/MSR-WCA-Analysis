@@ -67,6 +67,7 @@ corridor_flows = _indicators_mod.corridor_flows
 country_pop_breakdown = _indicators_mod.country_pop_breakdown
 country_stock = _indicators_mod.country_stock
 data_quality_summary = _indicators_mod.data_quality_summary
+quality_banner_items = _indicators_mod.quality_banner_items
 kpi_snapshot = _indicators_mod.kpi_snapshot
 mom_yoy = _indicators_mod.mom_yoy
 monthly_stock = _indicators_mod.monthly_stock
@@ -78,9 +79,11 @@ returns_monthly = _indicators_mod.returns_monthly
 from src.data_loader import (
     analytical_subset,
     filter_population,
+    format_data_version,
     load_countries,
     load_geoloc,
     load_population,
+    load_population_meta,
     load_psn,
     load_total_psn,
 )
@@ -186,6 +189,34 @@ def _render_header(lang: str) -> None:
           </div>
         </div>
         """,
+        unsafe_allow_html=True,
+    )
+
+
+def _data_version_banner(lang: str, meta: dict) -> None:
+    st.markdown(
+        f'<div class="data-version-banner"><strong>{t("data_version_title", lang)}</strong>'
+        f" — {html.escape(format_data_version(meta, lang))}</div>",
+        unsafe_allow_html=True,
+    )
+
+
+def _quality_banner(lang: str, items: list[dict]) -> None:
+    if not items:
+        body = f'<p class="qb-ok">{html.escape(t("quality_ok", lang))}</p>'
+    else:
+        lis = []
+        for it in items:
+            msg = t(it["code"], lang).format(
+                pop_code=it.get("pop_code", ""),
+                pct=it.get("pct", ""),
+            )
+            cls = "qb-warn" if it.get("level") == "warning" else "qb-ok"
+            lis.append(f'<li class="{cls}">{html.escape(msg)}</li>')
+        body = "<ul>" + "".join(lis) + "</ul>"
+    st.markdown(
+        f'<div class="quality-banner"><strong>{html.escape(t("quality_banner_title", lang))}</strong>'
+        f"{body}</div>",
         unsafe_allow_html=True,
     )
 
@@ -395,6 +426,18 @@ def main() -> None:
         st.error(f"{t('loading_error', lang)}\n\n`{exc}`")
         st.stop()
 
+    from src.config import APP_CHANNEL
+
+    data_meta = load_population_meta()
+    data_version_line = format_data_version(data_meta, lang)
+
+    if APP_CHANNEL == "staging":
+        st.markdown(
+            f'<div class="staging-banner">{html.escape(t("channel_staging", lang))}</div>',
+            unsafe_allow_html=True,
+        )
+    _data_version_banner(lang, data_meta)
+
     wca_iso3 = (
         countries["iso3"].dropna().astype(str).str.upper().unique().tolist()
         if "iso3" in countries.columns
@@ -526,6 +569,12 @@ def main() -> None:
     )
 
     with tab_overview:
+        q_items = quality_banner_items(
+            current,
+            pop[pop["year_month"] == month] if "year_month" in pop.columns else None,
+            year_month=month,
+        )
+        _quality_banner(lang, q_items)
         _kpi_cards(lang, kpi)
 
         by_type = (
@@ -926,9 +975,10 @@ def main() -> None:
         )
 
         def _build_report(rid: str) -> bytes:
+            common = {"lang": lang, "data_version": data_version_line}
             if rid == "flash":
                 return BUILDERS[rid](
-                    lang=lang,
+                    **common,
                     month=month,
                     month_label=month_label,
                     current=current,
@@ -937,7 +987,7 @@ def main() -> None:
                 )
             if rid == "country":
                 return BUILDERS[rid](
-                    lang=lang,
+                    **common,
                     month_label=month_label,
                     country_iso3=report_country,
                     country_name=host_map.get(report_country, report_country),
@@ -946,7 +996,7 @@ def main() -> None:
                 )
             if rid == "trend":
                 return BUILDERS[rid](
-                    lang=lang,
+                    **common,
                     filtered_all=filtered_all,
                     pop_codes=pop_codes,
                     base=base,
@@ -954,20 +1004,20 @@ def main() -> None:
                 )
             if rid == "corridors":
                 return BUILDERS[rid](
-                    lang=lang,
+                    **common,
                     month_label=month_label,
                     current=current,
                     wca_iso3=wca_iso3 or None,
                 )
             if rid == "methodology":
-                return BUILDERS[rid](lang=lang, current=current)
+                return BUILDERS[rid](**common, current=current)
             if rid == "shelter":
                 return BUILDERS[rid](
-                    lang=lang, month_label=month_label, current=current
+                    **common, month_label=month_label, current=current
                 )
             if rid == "psn":
                 return BUILDERS[rid](
-                    lang=lang,
+                    **common,
                     month=month,
                     month_label=month_label,
                     psn_raw=psn_raw,

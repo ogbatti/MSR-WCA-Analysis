@@ -239,6 +239,108 @@ def data_quality_summary(df: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows).sort_values("total", ascending=False)
 
 
+def aggregation_gap_alerts(
+    raw_df: pd.DataFrame,
+    year_month: str,
+    *,
+    threshold: float = 0.05,
+) -> pd.DataFrame:
+    """
+    Compare `detailed` vs `total` totals for the same pop_code and month when both exist.
+    Returns rows where relative absolute gap exceeds `threshold` (default 5%).
+    """
+    if raw_df.empty or "aggregation_type" not in raw_df.columns:
+        return pd.DataFrame()
+    sub = raw_df[raw_df["year_month"] == year_month].copy()
+    if sub.empty:
+        return pd.DataFrame()
+
+    rows = []
+    for code, g in sub.groupby("pop_code", dropna=False):
+        levels = set(g["aggregation_type"].dropna().unique())
+        if "detailed" not in levels or "total" not in levels:
+            continue
+        det = float(g.loc[g["aggregation_type"] == "detailed", "total"].sum())
+        tot = float(g.loc[g["aggregation_type"] == "total", "total"].sum())
+        denom = max(abs(tot), abs(det), 1.0)
+        gap = abs(det - tot) / denom
+        if gap >= threshold:
+            rows.append(
+                {
+                    "pop_code": code,
+                    "detailed": det,
+                    "total_level": tot,
+                    "gap_abs": det - tot,
+                    "gap_rel": gap,
+                }
+            )
+    if not rows:
+        return pd.DataFrame()
+    return pd.DataFrame(rows).sort_values("gap_rel", ascending=False)
+
+
+def quality_banner_items(
+    current: pd.DataFrame,
+    raw_month_df: pd.DataFrame | None = None,
+    *,
+    year_month: str | None = None,
+    sex_threshold: float = 0.80,
+) -> list[dict[str, str]]:
+    """
+    Build alert items for the Overview quality banner.
+    Each item: {level: info|warning, code: str} — messages resolved in the UI via i18n.
+    """
+    items: list[dict[str, str]] = []
+    q = data_quality_summary(current)
+    if q.empty:
+        items.append({"level": "warning", "code": "quality_empty"})
+        return items
+
+    for _, r in q.iterrows():
+        code = str(r["pop_code"])
+        # REF/ASY expected to be disaggregated
+        if code in {"REF", "ASY"} and float(r["sex_coverage"]) < sex_threshold:
+            items.append(
+                {
+                    "level": "warning",
+                    "code": "quality_low_sex",
+                    "pop_code": code,
+                    "pct": f"{float(r['sex_coverage']) * 100:.0f}",
+                }
+            )
+        if str(r["aggregation"]) == "total" and code in {"REF", "ASY"}:
+            items.append(
+                {
+                    "level": "info",
+                    "code": "quality_agg_total",
+                    "pop_code": code,
+                }
+            )
+
+    if raw_month_df is not None and year_month:
+        gaps = aggregation_gap_alerts(raw_month_df, year_month)
+        for _, g in gaps.iterrows():
+            items.append(
+                {
+                    "level": "warning",
+                    "code": "quality_agg_gap",
+                    "pop_code": str(g["pop_code"]),
+                    "pct": f"{float(g['gap_rel']) * 100:.1f}",
+                }
+            )
+
+    # Deduplicate identical codes+pop
+    seen: set[tuple[str, str]] = set()
+    unique: list[dict[str, str]] = []
+    for it in items:
+        key = (it["code"], it.get("pop_code", ""))
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(it)
+    return unique
+
+
 def accommodation_stock(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty or "accommodation_type" not in df.columns:
         return pd.DataFrame()

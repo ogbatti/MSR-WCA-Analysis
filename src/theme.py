@@ -234,6 +234,47 @@ APP_CSS = """
     margin: 0.6rem 0 1rem 0;
   }
 
+  .data-version-banner {
+    background: #F7FBFE;
+    border: 1px solid #CDE3F1;
+    border-left: 4px solid var(--unhcr-blue);
+    padding: 0.55rem 0.85rem;
+    border-radius: 0 4px 4px 0;
+    margin: 0.4rem 0 0.85rem 0;
+    font-size: 0.85rem;
+    color: var(--unhcr-text);
+  }
+  .data-version-banner strong {
+    color: var(--unhcr-blue-dark);
+  }
+
+  .quality-banner {
+    background: #FFFDF5;
+    border: 1px solid #FFE9A8;
+    border-left: 4px solid var(--unhcr-yellow);
+    padding: 0.65rem 0.85rem;
+    border-radius: 0 4px 4px 0;
+    margin: 0 0 0.9rem 0;
+    font-size: 0.88rem;
+  }
+  .quality-banner ul {
+    margin: 0.35rem 0 0 1.1rem;
+    padding: 0;
+  }
+  .quality-banner .qb-warn { color: #7C3C36; }
+  .quality-banner .qb-ok { color: #05568B; }
+
+  .staging-banner {
+    background: #FFF8E6;
+    border: 1px solid #FFC740;
+    color: #0B3754;
+    padding: 0.45rem 0.75rem;
+    border-radius: 4px;
+    margin: 0 0 0.75rem 0;
+    font-size: 0.84rem;
+    font-weight: 600;
+  }
+
   .stButton > button {
     background-color: var(--unhcr-blue);
     color: #FFFFFF;

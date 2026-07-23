@@ -21,17 +21,19 @@ Outil de référence MSR WCA : chiffres opposables, gouvernance, PDF institution
 
 ## Phases
 
-### Phase 0 — Isolation (en cours)
+### Phase 0 — Isolation
 - [x] Branche `develop`
-- [ ] App Streamlit Cloud **staging** pointant sur `develop`
+- [x] App Streamlit Cloud **staging** pointant sur `develop`
 - [x] Ce document + checklist go-live
 - [ ] Secrets staging (`ACTIVITYINFO_TOKEN`, plus tard clé LLM)
 
 ### Phase 1 — Confiance dans les données
-- Version / horodatage extrait ActivityInfo (UI + PDF)
-- Tests automatiques agrégation (detailed/total, types)
-- Bandeau qualité (couverture sexe/âge, pays incomplets)
-- Alertes d’écarts vs totaux de référence
+- [x] Version / horodatage extrait ActivityInfo (UI + PDF) — `population_meta.json`
+- [x] Bandeau qualité (couverture sexe REF/ASY, écarts detailed vs total)
+- [x] Tests automatiques agrégation (`tests/test_analytical_subset.py`)
+- [x] Bandeau « staging » pour distinguer clairement de la prod
+- [ ] CI GitHub Actions (prochaine itération)
+- [ ] Réconciliation vs totaux de référence externes (si source dispo)
 
 ### Phase 2 — Produit + gouvernance
 - Auth institutionnelle (SSO / Azure AD) sur staging

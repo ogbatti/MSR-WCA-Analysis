@@ -169,10 +169,13 @@ def _font_paths() -> tuple[str | None, str | None]:
 
 
 class MsrPdf(FPDF):
-    def __init__(self, lang: str, report_title: str) -> None:
+    def __init__(
+        self, lang: str, report_title: str, data_version: str | None = None
+    ) -> None:
         super().__init__(format="A4")
         self.lang = lang
         self.report_title = report_title
+        self.data_version = data_version or ""
         self.set_auto_page_break(auto=True, margin=18)
         reg, bold = _font_paths()
         if reg:
@@ -190,6 +193,9 @@ class MsrPdf(FPDF):
         self.set_font(self.font_family, "", 8)
         self.set_text_color(80, 80, 80)
         self.cell(0, 5, self.report_title, ln=True)
+        if self.data_version:
+            self.set_text_color(100, 100, 100)
+            self.multi_cell(0, 4, self.data_version[:160])
         self.ln(2)
         self.set_draw_color(0, 114, 188)
         self.set_line_width(0.4)
@@ -515,9 +521,10 @@ def build_flash_pdf(
     current: pd.DataFrame,
     previous: pd.DataFrame,
     pop_codes: list[str],
+    data_version: str | None = None,
 ) -> bytes:
     title = REPORT_CATALOG[0]["title"][lang]
-    pdf = MsrPdf(lang, title)
+    pdf = MsrPdf(lang, title, data_version=data_version)
     pdf.h1(title)
     pdf.p(
         f"{'Reference month' if lang == 'en' else 'Mois de référence'} : {month_label}"
@@ -619,9 +626,10 @@ def build_country_pdf(
     country_name: str,
     current: pd.DataFrame,
     previous: pd.DataFrame,
+    data_version: str | None = None,
 ) -> bytes:
     title = REPORT_CATALOG[1]["title"][lang]
-    pdf = MsrPdf(lang, f"{title} — {country_name}")
+    pdf = MsrPdf(lang, f"{title} — {country_name}", data_version=data_version)
     pdf.h1(f"{title} — {country_name}")
     pdf.p(f"{'Month' if lang == 'en' else 'Mois'} : {month_label}")
     cdf = current[current["asylum_iso3"] == country_iso3]
@@ -741,9 +749,10 @@ def build_trend_pdf(
     pop_codes: list[str],
     base: pd.DataFrame,
     selected_hosts: list[str] | None,
+    data_version: str | None = None,
 ) -> bytes:
     title = REPORT_CATALOG[2]["title"][lang]
-    pdf = MsrPdf(lang, title)
+    pdf = MsrPdf(lang, title, data_version=data_version)
     pdf.h1(title)
     monthly = monthly_stock(filtered_all)
     trend = mom_yoy(monthly, pop_codes=pop_codes)
@@ -849,9 +858,10 @@ def build_corridors_pdf(
     month_label: str,
     current: pd.DataFrame,
     wca_iso3: list[str] | None,
+    data_version: str | None = None,
 ) -> bytes:
     title = REPORT_CATALOG[3]["title"][lang]
-    pdf = MsrPdf(lang, title)
+    pdf = MsrPdf(lang, title, data_version=data_version)
     pdf.h1(title)
     pdf.p(f"{'Month' if lang == 'en' else 'Mois'} : {month_label}")
     src = current[current["pop_code"].isin(["REF", "ASY"])]
@@ -920,9 +930,11 @@ def build_corridors_pdf(
     return pdf.to_bytes()
 
 
-def build_methodology_pdf(*, lang: str, current: pd.DataFrame) -> bytes:
+def build_methodology_pdf(
+    *, lang: str, current: pd.DataFrame, data_version: str | None = None
+) -> bytes:
     title = REPORT_CATALOG[4]["title"][lang]
-    pdf = MsrPdf(lang, title)
+    pdf = MsrPdf(lang, title, data_version=data_version)
     pdf.h1(title)
     if lang == "fr":
         pdf.h2("Source")
@@ -997,9 +1009,15 @@ def build_methodology_pdf(*, lang: str, current: pd.DataFrame) -> bytes:
     return pdf.to_bytes()
 
 
-def build_shelter_pdf(*, lang: str, month_label: str, current: pd.DataFrame) -> bytes:
+def build_shelter_pdf(
+    *,
+    lang: str,
+    month_label: str,
+    current: pd.DataFrame,
+    data_version: str | None = None,
+) -> bytes:
     title = REPORT_CATALOG[5]["title"][lang]
-    pdf = MsrPdf(lang, title)
+    pdf = MsrPdf(lang, title, data_version=data_version)
     pdf.h1(title)
     pdf.p(f"{'Month' if lang == 'en' else 'Mois'} : {month_label}")
     share = accommodation_share_ref_asy(current)
@@ -1096,9 +1114,10 @@ def build_psn_pdf(
     psn_raw: pd.DataFrame,
     total_psn_raw: pd.DataFrame,
     selected_hosts: list[str] | None,
+    data_version: str | None = None,
 ) -> bytes:
     title = REPORT_CATALOG[6]["title"][lang]
-    pdf = MsrPdf(lang, title)
+    pdf = MsrPdf(lang, title, data_version=data_version)
     pdf.h1(title)
     pdf.p(f"{'Month' if lang == 'en' else 'Mois'} : {month_label}")
     pdf.p(

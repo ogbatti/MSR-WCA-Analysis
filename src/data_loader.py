@@ -1,7 +1,10 @@
 """Data loading, caching and normalization."""
 from __future__ import annotations
 
+import json
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 import streamlit as st
@@ -21,6 +24,89 @@ from src.config import (
 
 def _cache_path(name: str) -> Path:
     return CACHE_DIR / name
+
+
+def _meta_path() -> Path:
+    return _cache_path("population_meta.json")
+
+
+def _build_population_meta(
+    df: pd.DataFrame,
+    *,
+    source: str,
+    extracted_at: str | None = None,
+) -> dict[str, Any]:
+    """Build extract metadata for UI / PDF version banners."""
+    dates = pd.to_datetime(df["date"], errors="coerce") if "date" in df.columns else pd.Series(dtype="datetime64[ns]")
+    yms = (
+        sorted(df["year_month"].dropna().astype(str).unique().tolist())
+        if "year_month" in df.columns
+        else []
+    )
+    codes = (
+        sorted(df["pop_code"].dropna().astype(str).unique().tolist())
+        if "pop_code" in df.columns
+        else []
+    )
+    return {
+        "extracted_at": extracted_at
+        or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "source": source,  # "api" | "cache"
+        "n_rows": int(len(df)),
+        "date_min": dates.min().date().isoformat() if dates.notna().any() else None,
+        "date_max": dates.max().date().isoformat() if dates.notna().any() else None,
+        "year_months": yms,
+        "pop_codes": codes,
+    }
+
+
+def _write_population_meta(meta: dict[str, Any]) -> None:
+    path = _meta_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def load_population_meta() -> dict[str, Any]:
+    """Return last population extract metadata (empty dict if missing)."""
+    path = _meta_path()
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def format_data_version(meta: dict[str, Any], lang: str = "fr") -> str:
+    """Human-readable data version line for banners / PDFs."""
+    if not meta:
+        return (
+            "Version des données : indisponible"
+            if lang == "fr"
+            else "Data version: unavailable"
+        )
+    extracted = meta.get("extracted_at") or "—"
+    # Show UTC timestamp truncated to minutes
+    if isinstance(extracted, str) and "T" in extracted:
+        extracted = extracted.replace("T", " ")[:16] + " UTC"
+    source = meta.get("source", "—")
+    source_lbl = (
+        ("API" if source == "api" else "cache local" if source == "cache" else source)
+        if lang == "fr"
+        else ("API" if source == "api" else "local cache" if source == "cache" else source)
+    )
+    n = meta.get("n_rows")
+    dmin, dmax = meta.get("date_min"), meta.get("date_max")
+    span = f"{dmin} → {dmax}" if dmin and dmax else "—"
+    if lang == "fr":
+        return (
+            f"Données ActivityInfo · extrait {extracted} · source {source_lbl}"
+            f" · {n:,} lignes · période {span}".replace(",", " ")
+        )
+    return (
+        f"ActivityInfo data · extracted {extracted} · source {source_lbl}"
+        f" · {n:,} rows · period {span}"
+    )
 
 
 @st.cache_data(show_spinner=False, ttl=3600)
@@ -190,6 +276,16 @@ def load_population(force_refresh: bool = False) -> pd.DataFrame:
             df["year_month"] = df["date"].dt.to_period("M").astype(str)
         if "year" not in df.columns:
             df["year"] = df["date"].dt.year
+        # Ensure meta exists for version banner (e.g. first run after upgrade)
+        if not _meta_path().exists():
+            mtime = datetime.fromtimestamp(parquet.stat().st_mtime, tz=timezone.utc)
+            _write_population_meta(
+                _build_population_meta(
+                    df,
+                    source="cache",
+                    extracted_at=mtime.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                )
+            )
         return df
 
     client = ActivityInfoClient()
@@ -197,6 +293,7 @@ def load_population(force_refresh: bool = False) -> pd.DataFrame:
     df = pd.DataFrame(rows)
     df = _normalize_population(df, countries)
     df.to_parquet(parquet, index=False)
+    _write_population_meta(_build_population_meta(df, source="api"))
     return df
 
 
