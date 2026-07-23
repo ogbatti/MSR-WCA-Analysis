@@ -9,6 +9,7 @@ from src.config import POP_TYPE_LABELS
 from src.theme import (
     BLUE_PRIMARY,
     CHOROPLETH_BLUES,
+    GREEN_PRIMARY,
     RED_PRIMARY,
     SCENARIO_COLORS,
     YELLOW_PRIMARY,
@@ -81,29 +82,53 @@ def monthly_trend_line(monthly: pd.DataFrame, lang: str) -> go.Figure:
 
 
 def mom_yoy_bars(trend: pd.DataFrame, lang: str) -> go.Figure:
-    d = trend.dropna(subset=["mom"]).copy()
-    fig = go.Figure()
-    fig.add_trace(
+    """
+    Clearer alternative to MoM/YoY % bars: absolute month-to-month change
+    (people gained/lost), with hover showing MoM % and YoY % when available.
+    """
+    d = trend.dropna(subset=["mom_abs"]).copy()
+    title = (
+        "Monthly change in total population (people)"
+        if lang == "en"
+        else "Variation mensuelle de la population totale (personnes)"
+    )
+    if d.empty:
+        fig = go.Figure()
+        apply_unhcr_layout(fig, title=title)
+        return fig
+
+    colors = [GREEN_PRIMARY if v >= 0 else RED_PRIMARY for v in d["mom_abs"]]
+    custom = []
+    for _, r in d.iterrows():
+        mom_p = f"{r['mom']*100:.1f}%" if pd.notna(r.get("mom")) else "—"
+        yoy_p = f"{r['yoy']*100:.1f}%" if pd.notna(r.get("yoy")) else "—"
+        custom.append((mom_p, yoy_p, f"{r['total']:,.0f}"))
+
+    fig = go.Figure(
         go.Bar(
             x=d["year_month"],
-            y=d["mom"] * 100,
-            name="MoM %",
-            marker_color=BLUE_PRIMARY,
+            y=d["mom_abs"],
+            marker_color=colors,
+            customdata=custom,
+            hovertemplate=(
+                "<b>%{x}</b><br>"
+                + ("Change: " if lang == "en" else "Variation : ")
+                + "%{y:,.0f}<br>"
+                + "MoM: %{customdata[0]}<br>"
+                + "YoY: %{customdata[1]}<br>"
+                + ("Total: " if lang == "en" else "Total : ")
+                + "%{customdata[2]}<extra></extra>"
+            ),
         )
     )
-    if d["yoy"].notna().any():
-        fig.add_trace(
-            go.Bar(
-                x=d["year_month"],
-                y=d["yoy"] * 100,
-                name="YoY %",
-                marker_color=YELLOW_PRIMARY,
-            )
-        )
-    y_title = "Variation (%)" if lang == "fr" else "Change (%)"
-    title = "MoM / YoY changes" if lang == "en" else "Variations MoM / YoY"
-    fig.update_layout(barmode="group", height=380, yaxis_title=y_title, xaxis_title="")
+    fig.add_hline(y=0, line_width=1, line_color="#666666")
     apply_unhcr_layout(fig, title=title)
+    fig.update_layout(
+        height=400,
+        yaxis_title="Personnes" if lang == "fr" else "People",
+        xaxis_title="",
+        showlegend=False,
+    )
     return fig
 
 
@@ -211,8 +236,12 @@ def choropleth_hosts(
 
 
 def age_sex_pyramid_chart(pyramid: pd.DataFrame, lang: str) -> go.Figure:
-    """Horizontal age–sex pyramid (female left, male right)."""
-    title = "Age–sex pyramid" if lang == "en" else "Pyramide des âges par sexe"
+    """Horizontal age–sex pyramid (female left, male right) — UNHCR standard bands."""
+    title = (
+        "Age–sex pyramid (UNHCR standard bands)"
+        if lang == "en"
+        else "Pyramide des âges par sexe (tranches standards HCR)"
+    )
     if pyramid is None or pyramid.empty:
         fig = go.Figure()
         apply_unhcr_layout(fig, title=title)
@@ -268,7 +297,11 @@ def age_sex_pyramid_chart(pyramid: pd.DataFrame, lang: str) -> go.Figure:
 
 def corridor_map(flows: pd.DataFrame, lang: str) -> go.Figure:
     fig = go.Figure()
-    title = "Displacement corridors" if lang == "en" else "Corridors de déplacement"
+    title = (
+        "Displacement corridors (origin → asylum)"
+        if lang == "en"
+        else "Corridors de déplacement (origine → asile)"
+    )
     if flows.empty:
         apply_unhcr_layout(fig, title=title)
         fig.update_layout(height=520)
@@ -281,46 +314,91 @@ def corridor_map(flows: pd.DataFrame, lang: str) -> go.Figure:
     for _, r in flows.iterrows():
         if pd.isna(r.get("origin_lat")) or pd.isna(r.get("asylum_lat")):
             continue
+        o_lon, o_lat = float(r["origin_lon"]), float(r["origin_lat"])
+        a_lon, a_lat = float(r["asylum_lon"]), float(r["asylum_lat"])
         width = 1 + 6 * (r["total"] / max_t)
+        # Arrow tip at ~75% of the path toward asylum (origin → asylum)
+        ax = o_lon + 0.75 * (a_lon - o_lon)
+        ay = o_lat + 0.75 * (a_lat - o_lat)
+        hover = (
+            f"{r.get(o_name)} → {r.get(a_name)}<br>"
+            f"{r.get('pop_code')}: {r['total']:,.0f}"
+        )
         fig.add_trace(
             go.Scattergeo(
-                lon=[r["origin_lon"], r["asylum_lon"]],
-                lat=[r["origin_lat"], r["asylum_lat"]],
+                lon=[o_lon, a_lon],
+                lat=[o_lat, a_lat],
                 mode="lines",
                 line=dict(width=width, color=RED_PRIMARY),
                 opacity=0.55,
                 hoverinfo="text",
-                text=f"{r.get(o_name)} → {r.get(a_name)}<br>{r.get('pop_code')}: {r['total']:,.0f}",
+                text=hover,
+                showlegend=False,
+            )
+        )
+        fig.add_trace(
+            go.Scattergeo(
+                lon=[ax],
+                lat=[ay],
+                mode="markers",
+                marker=dict(size=8, color=RED_PRIMARY, symbol="triangle-up"),
+                hoverinfo="text",
+                text=hover,
                 showlegend=False,
             )
         )
 
-    ends = pd.concat(
-        [
-            flows[["origin_lat", "origin_lon", o_name]].rename(
-                columns={"origin_lat": "lat", "origin_lon": "lon", o_name: "name"}
-            ),
-            flows[["asylum_lat", "asylum_lon", a_name]].rename(
-                columns={"asylum_lat": "lat", "asylum_lon": "lon", a_name: "name"}
-            ),
-        ]
-    ).dropna().drop_duplicates()
-    fig.add_trace(
-        go.Scattergeo(
-            lon=ends["lon"],
-            lat=ends["lat"],
-            text=ends["name"],
-            mode="markers",
-            marker=dict(size=8, color=BLUE_PRIMARY, line=dict(width=1, color="white")),
-            hoverinfo="text",
-            showlegend=False,
-        )
+    # Origins (open circles) vs asylum (filled)
+    origins = (
+        flows[["origin_lat", "origin_lon", o_name]]
+        .rename(columns={"origin_lat": "lat", "origin_lon": "lon", o_name: "name"})
+        .dropna()
+        .drop_duplicates()
     )
+    asylums = (
+        flows[["asylum_lat", "asylum_lon", a_name]]
+        .rename(columns={"asylum_lat": "lat", "asylum_lon": "lon", a_name: "name"})
+        .dropna()
+        .drop_duplicates()
+    )
+    if not origins.empty:
+        fig.add_trace(
+            go.Scattergeo(
+                lon=origins["lon"],
+                lat=origins["lat"],
+                text=origins["name"].map(
+                    lambda n: f"{'Origin' if lang == 'en' else 'Origine'}: {n}"
+                ),
+                mode="markers",
+                marker=dict(
+                    size=8,
+                    color="#FFFFFF",
+                    line=dict(width=2, color=BLUE_PRIMARY),
+                ),
+                hoverinfo="text",
+                name="Origin" if lang == "en" else "Origine",
+            )
+        )
+    if not asylums.empty:
+        fig.add_trace(
+            go.Scattergeo(
+                lon=asylums["lon"],
+                lat=asylums["lat"],
+                text=asylums["name"].map(
+                    lambda n: f"{'Asylum' if lang == 'en' else 'Asile'}: {n}"
+                ),
+                mode="markers",
+                marker=dict(size=9, color=BLUE_PRIMARY, line=dict(width=1, color="white")),
+                hoverinfo="text",
+                name="Asylum" if lang == "en" else "Asile",
+            )
+        )
+
     apply_unhcr_layout(fig, title=title)
-    # Wider than WCA so external origins (Sudan, Syria, etc.) remain visible
     fig.update_layout(
-        height=540,
+        height=560,
         margin=dict(l=0, r=0, t=56, b=0),
+        legend=dict(orientation="h", y=1.02, x=0),
         geo=dict(
             projection_type="natural earth",
             showland=True,
@@ -496,4 +574,132 @@ def psn_needs_bar(df: pd.DataFrame, lang: str) -> go.Figure:
     )
     apply_unhcr_layout(fig)
     fig.update_layout(height=420, showlegend=False)
+    return fig
+
+
+def adult_age_detail_bar(df: pd.DataFrame, lang: str) -> go.Figure:
+    """Complementary view of adult sub-bands 18-24 / 25-49 / 50-59."""
+    title = (
+        "Adult age detail (18–24 / 25–49 / 50–59)"
+        if lang == "en"
+        else "Détail des âges adultes (18–24 / 25–49 / 50–59)"
+    )
+    if df is None or df.empty:
+        fig = go.Figure()
+        apply_unhcr_layout(fig, title=title)
+        return fig
+    d = df.copy()
+    fig = go.Figure()
+    fig.add_trace(
+        go.Bar(
+            name="Female" if lang == "en" else "Femmes",
+            x=d["age_band"],
+            y=d["female"],
+            marker_color=RED_PRIMARY,
+        )
+    )
+    fig.add_trace(
+        go.Bar(
+            name="Male" if lang == "en" else "Hommes",
+            x=d["age_band"],
+            y=d["male"],
+            marker_color=BLUE_PRIMARY,
+        )
+    )
+    apply_unhcr_layout(fig, title=title)
+    fig.update_layout(barmode="group", height=360, yaxis_title=_total_label(lang))
+    return fig
+
+
+def accommodation_share_pie(df: pd.DataFrame, lang: str) -> go.Figure:
+    from src.config import ACCOMMODATION_LABELS
+
+    title = (
+        "REF + ASY — share living in camps vs out of camp"
+        if lang == "en"
+        else "REF + ASY — part vivant en camp vs hors camp"
+    )
+    if df is None or df.empty:
+        fig = go.Figure()
+        apply_unhcr_layout(fig, title=title)
+        return fig
+    d = df.copy()
+    d["label"] = d["accommodation_type"].map(
+        lambda x: ACCOMMODATION_LABELS.get(x, {}).get(lang, x)
+    )
+    fig = px.pie(
+        d,
+        names="label",
+        values="total",
+        color="accommodation_type",
+        color_discrete_map={
+            "camp": RED_PRIMARY,
+            "out-of-camp": BLUE_PRIMARY,
+            "unknown": "#BFBFBF",
+        },
+        title=title,
+        hole=0.35,
+    )
+    fig.update_traces(textposition="inside", textinfo="percent+label")
+    apply_unhcr_layout(fig, title=title)
+    fig.update_layout(height=400, showlegend=True)
+    return fig
+
+
+def admin2_residence_map(points: pd.DataFrame, lang: str, country_name: str) -> go.Figure:
+    title = (
+        f"Residence areas — {country_name}"
+        if lang == "en"
+        else f"Zones de résidence — {country_name}"
+    )
+    if points is None or points.empty:
+        fig = go.Figure()
+        apply_unhcr_layout(fig, title=title)
+        fig.update_layout(height=480)
+        return fig
+    d = points.copy()
+    d["pop"] = d["pop_code"].map(lambda c: _pop_name(c, lang))
+    color_map = {_pop_name(c, lang): pop_color(c) for c in d["pop_code"].unique()}
+    fig = px.scatter_geo(
+        d,
+        lat="lat",
+        lon="lon",
+        size="total",
+        color="pop",
+        hover_name="label",
+        hover_data={"total": ":,.0f", "lat": False, "lon": False, "pop": True},
+        color_discrete_map=color_map,
+        projection="natural earth",
+        title=title,
+        size_max=36,
+    )
+    apply_unhcr_layout(fig, title=title)
+
+    # Zoom on country: fitbounds when several locations, else center + scale
+    n_locs = d[["lat", "lon"]].drop_duplicates().shape[0]
+    geo_kw: dict = {
+        "showcountries": True,
+        "countrycolor": "#7A7A7A",
+        "showland": True,
+        "landcolor": "#F7FBFE",
+        "bgcolor": "rgba(0,0,0,0)",
+        "showframe": False,
+        "resolution": 50,
+    }
+    if n_locs >= 2:
+        geo_kw["fitbounds"] = "locations"
+    else:
+        clat = float(d["lat"].mean())
+        clon = float(d["lon"].mean())
+        geo_kw["center"] = dict(lat=clat, lon=clon)
+        geo_kw["projection_scale"] = 4.5
+        geo_kw["lonaxis"] = dict(range=[clon - 12, clon + 12])
+        geo_kw["lataxis"] = dict(range=[clat - 10, clat + 10])
+
+    fig.update_layout(
+        height=480,
+        margin=dict(l=0, r=0, t=56, b=0),
+        geo=geo_kw,
+        legend_title_text="",
+    )
     return fig

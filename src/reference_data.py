@@ -146,15 +146,20 @@ EXTERNAL_ORIGINS = {
     },
 }
 
-# Age bands used for the pyramid (female / male columns in population form)
+# Standard UNHCR age bands for the pyramid
 AGE_BANDS = [
     ("0-4", "f_0_4", "m_0_4"),
     ("5-11", "f_5_11", "m_5_11"),
     ("12-17", "f_12_17", "m_12_17"),
+    ("18-59", ["f_18_24", "f_25_49", "f_50_59"], ["m_18_24", "m_25_49", "m_50_59"]),
+    ("60+", "f_60", "m_60"),
+]
+
+# Detailed adult bands (useful for other response analysis)
+AGE_BANDS_ADULT_DETAIL = [
     ("18-24", "f_18_24", "m_18_24"),
     ("25-49", "f_25_49", "m_25_49"),
     ("50-59", "f_50_59", "m_50_59"),
-    ("60+", "f_60", "m_60"),
 ]
 
 MONTH_NAMES = {

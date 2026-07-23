@@ -7,8 +7,8 @@ STRINGS = {
         "en": "MSR — Monthly Statistical Report WCA",
     },
     "app_subtitle": {
-        "fr": "Déplacement forcé & apatridie · Afrique de l'Ouest et du Centre · ActivityInfo",
-        "en": "Forced displacement & statelessness · West & Central Africa · ActivityInfo",
+        "fr": "Déplacement forcé & apatridie · Afrique de l'Ouest et du Centre",
+        "en": "Forced displacement & statelessness · West & Central Africa",
     },
     "language": {"fr": "Langue", "en": "Language"},
     "filters": {"fr": "Filtres", "en": "Filters"},
@@ -21,9 +21,39 @@ STRINGS = {
     "overview": {"fr": "Vue d'ensemble", "en": "Overview"},
     "trends": {"fr": "Tendances", "en": "Trends"},
     "maps": {"fr": "Cartes & corridors", "en": "Maps & corridors"},
-    "territory": {"fr": "Territoire & fiche pays", "en": "Territory & country profile"},
+    "territory": {"fr": "Fiche pays", "en": "Country profile"},
+    "adult_age_detail": {
+        "fr": "Détail des âges adultes (18–24 / 25–49 / 50–59)",
+        "en": "Adult age detail (18–24 / 25–49 / 50–59)",
+    },
+    "monthly_change": {
+        "fr": "Variation mensuelle (personnes)",
+        "en": "Monthly change (people)",
+    },
+    "monthly_change_help": {
+        "fr": "Chaque barre montre combien de personnes ont été ajoutées ou retirées par rapport au mois précédent (vert = hausse, rouge = baisse). Survolez pour voir le % MoM et YoY.",
+        "en": "Each bar shows how many people were added or removed versus the previous month (green = increase, red = decrease). Hover for MoM and YoY %.",
+    },
+    "acc_ref_asy": {
+        "fr": "REF + ASY — camp vs hors camp",
+        "en": "REF + ASY — camp vs out of camp",
+    },
+    "residence_map": {
+        "fr": "Carte des zones de résidence (Admin2)",
+        "en": "Residence areas map (Admin2)",
+    },
     "shelter_psn": {"fr": "Hébergement & PSN", "en": "Shelter & PSN"},
     "admin": {"fr": "Admin1 / Admin2", "en": "Admin1 / Admin2"},
+    "reports": {"fr": "Rapports", "en": "Reports"},
+    "reports_intro": {
+        "fr": "Téléchargez des rapports PDF prêts à partager. Utilisez les filtres de la barre latérale (mois, types, pays) — la fiche pays exige un pays sélectionné ci-dessous.",
+        "en": "Download ready-to-share PDF reports. Sidebar filters (month, types, countries) apply — the country profile requires a country selected below.",
+    },
+    "download_pdf": {"fr": "Télécharger PDF", "en": "Download PDF"},
+    "report_country": {
+        "fr": "Pays pour le rapport « Profil pays »",
+        "en": "Country for the “Country profile” report",
+    },
     "forecast": {"fr": "Projection illustrative", "en": "Illustrative projection"},
     "about": {"fr": "À propos & glossaire", "en": "About & glossary"},
     "narrative": {"fr": "Interprétation", "en": "Narrative"},

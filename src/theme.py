@@ -53,8 +53,8 @@ POPULATION_COLORS = {
     "ASY": CYAN_PRIMARY,
     "IDP": YELLOW_PRIMARY,
     "STA": PURPLE_PRIMARY,
-    "RET": GREEN_PRIMARY,
-    "RDP": "#2B9C70",
+    "RET": BLUE_PRIMARY,  # refugee returnees — blue
+    "RDP": RED_PRIMARY,  # IDP returnees — red/coral (clearly distinct)
     "OOC": BROWN_PRIMARY,
     "NOC": GREY_PRIMARY,
 }
@@ -272,10 +272,15 @@ APP_CSS = """
 
 def apply_unhcr_layout(fig, *, title: str | None = None) -> None:
     """Apply shared UNHCR layout styling to a Plotly figure."""
+    title_text = "" if title is None else title
+    # If caller already set a px title and passes title=None, keep it;
+    # pass title="" explicitly to hide (avoid Streamlit/Plotly double titles).
+    if title is None and fig.layout.title and fig.layout.title.text:
+        title_text = fig.layout.title.text
     fig.update_layout(
         font=dict(family=FONT_FAMILY, color=TEXT_COLOR, size=13),
         title=dict(
-            text=title if title is not None else fig.layout.title.text,
+            text=title_text,
             font=dict(family=FONT_FAMILY, color=BLUE_06, size=15),
             x=0.0,
             xanchor="left",
@@ -289,7 +294,7 @@ def apply_unhcr_layout(fig, *, title: str | None = None) -> None:
         ),
         colorway=CATEGORICAL,
         hoverlabel=dict(bgcolor=WHITE, font_size=12, font_family=FONT_FAMILY),
-        margin=dict(l=40, r=20, t=56, b=40),
+        margin=dict(l=40, r=20, t=48 if title_text else 24, b=40),
     )
     fig.update_xaxes(showgrid=True, gridcolor=GRID_COLOR, zeroline=False, linecolor=GREY_03)
     fig.update_yaxes(showgrid=True, gridcolor=GRID_COLOR, zeroline=False, linecolor=GREY_03)

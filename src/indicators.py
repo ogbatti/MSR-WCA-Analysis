@@ -346,18 +346,246 @@ def annual_stock(df: pd.DataFrame, pop_codes: list[str] | None = None) -> pd.Dat
 
 
 def age_sex_pyramid(df: pd.DataFrame) -> pd.DataFrame:
-    """Build age/sex pyramid totals from detailed age columns."""
+    """Build standard UNHCR age/sex pyramid (0-4, 5-11, 12-17, 18-59, 60+)."""
     from src.reference_data import AGE_BANDS
 
     if df.empty:
         return pd.DataFrame(columns=["age_band", "female", "male"])
 
+    def _sum_cols(frame: pd.DataFrame, cols) -> float:
+        if isinstance(cols, str):
+            cols = [cols]
+        return float(sum(frame[c].sum() for c in cols if c in frame.columns))
+
     rows = []
-    for label, f_col, m_col in AGE_BANDS:
+    for label, f_cols, m_cols in AGE_BANDS:
+        rows.append(
+            {
+                "age_band": label,
+                "female": _sum_cols(df, f_cols),
+                "male": _sum_cols(df, m_cols),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def age_adult_detail(df: pd.DataFrame) -> pd.DataFrame:
+    """Adult sub-bands 18-24 / 25-49 / 50-59 for complementary analysis."""
+    from src.reference_data import AGE_BANDS_ADULT_DETAIL
+
+    if df.empty:
+        return pd.DataFrame(columns=["age_band", "female", "male", "total"])
+    rows = []
+    for label, f_col, m_col in AGE_BANDS_ADULT_DETAIL:
         female = float(df[f_col].sum()) if f_col in df.columns else 0.0
         male = float(df[m_col].sum()) if m_col in df.columns else 0.0
-        rows.append({"age_band": label, "female": female, "male": male})
+        rows.append(
+            {"age_band": label, "female": female, "male": male, "total": female + male}
+        )
     return pd.DataFrame(rows)
+
+
+def accommodation_share_ref_asy(df: pd.DataFrame) -> pd.DataFrame:
+    """Camp vs out-of-camp shares for REF and ASY only."""
+    if df.empty or "accommodation_type" not in df.columns:
+        return pd.DataFrame()
+    out = df[df["pop_code"].isin(["REF", "ASY"])].copy()
+    if out.empty:
+        return pd.DataFrame()
+    out["accommodation_type"] = (
+        out["accommodation_type"].fillna("unknown").replace("", "unknown")
+    )
+    g = out.groupby("accommodation_type", as_index=False)["total"].sum()
+    tot = float(g["total"].sum()) or 1.0
+    g["share"] = g["total"] / tot
+    return g.sort_values("total", ascending=False)
+
+
+def _country_centroid(
+    pop_df: pd.DataFrame,
+    geoloc_df: pd.DataFrame,
+    asylum_iso3: str,
+    countries_df: pd.DataFrame | None = None,
+) -> tuple[float, float] | None:
+    """Resolve host-country lat/lon: geoloc admin0 → admin1 mean → countries → asylum coords."""
+    geo = geoloc_df if geoloc_df is not None and not geoloc_df.empty else pd.DataFrame()
+    if not geo.empty and "iso3" in geo.columns:
+        g_iso = geo[geo["iso3"].astype(str).str.upper() == str(asylum_iso3).upper()]
+        if "level" in g_iso.columns:
+            g0 = g_iso[g_iso["level"] == "admin0"]
+            if not g0.empty and pd.notna(g0.iloc[0].get("latitude")):
+                return float(g0.iloc[0]["latitude"]), float(g0.iloc[0]["longitude"])
+            g1 = g_iso[g_iso["level"] == "admin1"].dropna(subset=["latitude", "longitude"])
+            if not g1.empty:
+                return float(g1["latitude"].mean()), float(g1["longitude"].mean())
+        # Any geocoded row for that ISO
+        any_g = g_iso.dropna(subset=["latitude", "longitude"])
+        if not any_g.empty:
+            return float(any_g.iloc[0]["latitude"]), float(any_g.iloc[0]["longitude"])
+
+    if countries_df is not None and not countries_df.empty and "iso3" in countries_df.columns:
+        c = countries_df[
+            countries_df["iso3"].astype(str).str.upper() == str(asylum_iso3).upper()
+        ]
+        if (
+            not c.empty
+            and "latitude" in c.columns
+            and pd.notna(c.iloc[0].get("latitude"))
+            and pd.notna(c.iloc[0].get("longitude"))
+        ):
+            return float(c.iloc[0]["latitude"]), float(c.iloc[0]["longitude"])
+
+    if (
+        not pop_df.empty
+        and "asylum_lat" in pop_df.columns
+        and "asylum_lon" in pop_df.columns
+    ):
+        sub = pop_df.dropna(subset=["asylum_lat", "asylum_lon"])
+        if not sub.empty:
+            return float(sub.iloc[0]["asylum_lat"]), float(sub.iloc[0]["asylum_lon"])
+    return None
+
+
+def admin2_map_points(
+    pop_df: pd.DataFrame,
+    geoloc_df: pd.DataFrame,
+    asylum_iso3: str,
+    countries_df: pd.DataFrame | None = None,
+) -> pd.DataFrame:
+    """
+    Map points for a host country profile.
+
+    Prefer Admin2 geoloc, then Admin1, then a country-centroid bubble.
+    Always returns at least one point when the country has population and a
+    resolvable coordinate (any admin level or country centroid).
+    """
+    if pop_df.empty:
+        return pd.DataFrame()
+
+    focus = pop_df[pop_df["asylum_iso3"] == asylum_iso3].copy()
+    if focus.empty:
+        return pd.DataFrame()
+
+    # Prefer stock types for residence maps; fall back to all present types
+    preferred = focus[focus["pop_code"].isin(["REF", "ASY", "IDP", "STA"])]
+    focus = preferred if not preferred.empty else focus
+
+    geo = geoloc_df.copy() if geoloc_df is not None and not geoloc_df.empty else pd.DataFrame()
+    if not geo.empty and "iso3" in geo.columns:
+        geo = geo[geo["iso3"].astype(str).str.upper() == str(asylum_iso3).upper()]
+    g2 = (
+        geo[geo["level"] == "admin2"].copy()
+        if not geo.empty and "level" in geo.columns
+        else pd.DataFrame()
+    )
+    g1 = (
+        geo[geo["level"] == "admin1"].copy()
+        if not geo.empty and "level" in geo.columns
+        else pd.DataFrame()
+    )
+    country_xy = _country_centroid(focus, geoloc_df, asylum_iso3, countries_df)
+    country_lat = country_xy[0] if country_xy else None
+    country_lon = country_xy[1] if country_xy else None
+
+    def _match_name(frame: pd.DataFrame, col: str, name: object) -> pd.DataFrame:
+        if frame.empty or col not in frame.columns or name is None or pd.isna(name):
+            return pd.DataFrame()
+        return frame[frame[col].astype(str).str.strip().str.lower() == str(name).strip().lower()]
+
+    rows: list[dict] = []
+
+    by_a2 = (
+        focus.dropna(subset=["coa_admin2"])
+        .groupby(
+            ["asylum_iso3", "coa_admin1", "coa_admin2", "pop_code"],
+            as_index=False,
+        )["total"]
+        .sum()
+    )
+    for _, r in by_a2.iterrows():
+        lat = lon = None
+        geo_level = "country"
+        match2 = _match_name(g2, "admin2_name", r["coa_admin2"])
+        if not match2.empty:
+            lat = float(match2.iloc[0]["latitude"])
+            lon = float(match2.iloc[0]["longitude"])
+            geo_level = "admin2"
+        else:
+            match1 = _match_name(g1, "admin1_name", r.get("coa_admin1"))
+            if not match1.empty:
+                lat = float(match1.iloc[0]["latitude"])
+                lon = float(match1.iloc[0]["longitude"])
+                geo_level = "admin1"
+            elif country_lat is not None:
+                lat, lon = country_lat, country_lon
+        if lat is None:
+            continue
+        rows.append(
+            {
+                "label": f"{r['coa_admin2']} ({r['pop_code']})",
+                "admin2": r["coa_admin2"],
+                "admin1": r.get("coa_admin1"),
+                "pop_code": r["pop_code"],
+                "total": r["total"],
+                "lat": lat,
+                "lon": lon,
+                "geo_level": geo_level,
+            }
+        )
+
+    if rows:
+        return pd.DataFrame(rows).sort_values("total", ascending=False)
+
+    by_a1 = (
+        focus.dropna(subset=["coa_admin1"])
+        .groupby(["coa_admin1", "pop_code"], as_index=False)["total"]
+        .sum()
+    )
+    for _, r in by_a1.iterrows():
+        match1 = _match_name(g1, "admin1_name", r["coa_admin1"])
+        if not match1.empty:
+            lat = float(match1.iloc[0]["latitude"])
+            lon = float(match1.iloc[0]["longitude"])
+            geo_level = "admin1"
+        elif country_lat is not None:
+            lat, lon = country_lat, country_lon
+            geo_level = "country"
+        else:
+            continue
+        rows.append(
+            {
+                "label": f"{r['coa_admin1']} ({r['pop_code']})",
+                "admin2": None,
+                "admin1": r["coa_admin1"],
+                "pop_code": r["pop_code"],
+                "total": r["total"],
+                "lat": lat,
+                "lon": lon,
+                "geo_level": geo_level,
+            }
+        )
+
+    if rows:
+        return pd.DataFrame(rows).sort_values("total", ascending=False)
+
+    # Last resort: one bubble per pop type at country centroid
+    if country_lat is None:
+        return pd.DataFrame()
+    by_pop = focus.groupby("pop_code", as_index=False)["total"].sum()
+    for _, r in by_pop.iterrows():
+        rows.append(
+            {
+                "label": f"{asylum_iso3} ({r['pop_code']})",
+                "admin2": None,
+                "admin1": None,
+                "pop_code": r["pop_code"],
+                "total": r["total"],
+                "lat": country_lat,
+                "lon": country_lon,
+                "geo_level": "country",
+            }
+        )
+    return pd.DataFrame(rows).sort_values("total", ascending=False) if rows else pd.DataFrame()
 
 
 def country_pop_breakdown(df: pd.DataFrame, lang: str = "fr") -> pd.DataFrame:

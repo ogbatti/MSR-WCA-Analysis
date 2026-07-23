@@ -29,6 +29,7 @@ for _mod_name in (
     "src.indicators",
     "src.narratives",
     "src.forecasting",
+    "src.reports",
     "src.data_loader",
 ):
     if _mod_name in sys.modules:
@@ -41,10 +42,12 @@ import src.indicators as _indicators_mod
 
 age_sex_pyramid_chart = _charts_mod.age_sex_pyramid_chart
 accommodation_bar = _charts_mod.accommodation_bar
+accommodation_share_pie = _charts_mod.accommodation_share_pie
+admin2_residence_map = _charts_mod.admin2_residence_map
+adult_age_detail_bar = _charts_mod.adult_age_detail_bar
 choropleth_hosts = _charts_mod.choropleth_hosts
 corridor_map = _charts_mod.corridor_map
 forecast_lines = _charts_mod.forecast_lines
-hotspot_bar = _charts_mod.hotspot_bar
 mom_yoy_bars = _charts_mod.mom_yoy_bars
 monthly_trend_line = _charts_mod.monthly_trend_line
 psn_needs_bar = _charts_mod.psn_needs_bar
@@ -52,10 +55,12 @@ returns_trend_line = _charts_mod.returns_trend_line
 stock_by_type_bar = _charts_mod.stock_by_type_bar
 top_bar = _charts_mod.top_bar
 
-admin1_hotspots = _indicators_mod.admin1_hotspots
 admin1_stock = _indicators_mod.admin1_stock
+admin2_map_points = _indicators_mod.admin2_map_points
 admin2_stock = _indicators_mod.admin2_stock
+accommodation_share_ref_asy = _indicators_mod.accommodation_share_ref_asy
 accommodation_stock = _indicators_mod.accommodation_stock
+age_adult_detail = _indicators_mod.age_adult_detail
 age_sex_pyramid = _indicators_mod.age_sex_pyramid
 annual_stock = _indicators_mod.annual_stock
 corridor_flows = _indicators_mod.corridor_flows
@@ -74,6 +79,7 @@ from src.data_loader import (
     analytical_subset,
     filter_population,
     load_countries,
+    load_geoloc,
     load_population,
     load_psn,
     load_total_psn,
@@ -376,6 +382,10 @@ def main() -> None:
         pop = load_population(force_refresh=force)
         countries = load_countries()
         try:
+            geoloc = load_geoloc()
+        except Exception:  # noqa: BLE001
+            geoloc = pd.DataFrame()
+        try:
             psn_raw = load_psn()
             total_psn_raw = load_total_psn()
         except Exception:  # noqa: BLE001
@@ -503,6 +513,7 @@ def main() -> None:
         tab_maps,
         tab_territory,
         tab_shelter,
+        tab_reports,
         tab_forecast,
         tab_about,
     ) = st.tabs(
@@ -512,6 +523,7 @@ def main() -> None:
             t("maps", lang),
             t("territory", lang),
             t("shelter_psn", lang),
+            t("reports", lang),
             t("forecast", lang),
             t("about", lang),
         ]
@@ -542,15 +554,7 @@ def main() -> None:
         left, right = st.columns(2)
         with left:
             st.plotly_chart(stock_by_type_bar(by_type, lang), width="stretch")
-            st.plotly_chart(
-                top_bar(hosts_agg, host_label, t("top_hosts", lang), lang=lang),
-                width="stretch",
-            )
         with right:
-            st.plotly_chart(
-                top_bar(origins_agg, o_name, t("top_origins", lang), lang=lang),
-                width="stretch",
-            )
             table = by_type.assign(
                 pop=lambda d: d["pop_code"].map(lambda c: pop_label(c, lang))
             )[["pop", "total", "female", "male", "children"]].rename(
@@ -564,9 +568,37 @@ def main() -> None:
             )
             st.dataframe(table, width="stretch", hide_index=True)
 
+        host_col, origin_col = st.columns(2)
+        with host_col:
+            st.plotly_chart(
+                top_bar(hosts_agg, host_label, t("top_hosts", lang), lang=lang),
+                width="stretch",
+            )
+        with origin_col:
+            st.plotly_chart(
+                top_bar(origins_agg, o_name, t("top_origins", lang), lang=lang),
+                width="stretch",
+            )
+
         pyramid = age_sex_pyramid(current)
         if not pyramid.empty and (pyramid["female"].sum() + pyramid["male"].sum()) > 0:
             st.plotly_chart(age_sex_pyramid_chart(pyramid, lang), width="stretch")
+        adult = age_adult_detail(current)
+        if not adult.empty and adult["total"].sum() > 0:
+            with st.expander(t("adult_age_detail", lang)):
+                st.plotly_chart(adult_age_detail_bar(adult, lang), width="stretch")
+                st.dataframe(
+                    adult.rename(
+                        columns={
+                            "age_band": "Tranche" if lang == "fr" else "Age band",
+                            "female": "Femmes" if lang == "fr" else "Female",
+                            "male": "Hommes" if lang == "fr" else "Male",
+                            "total": t("total_population", lang),
+                        }
+                    ),
+                    width="stretch",
+                    hide_index=True,
+                )
 
         with st.expander(t("data_quality", lang)):
             q = data_quality_summary(current)
@@ -632,6 +664,7 @@ def main() -> None:
         monthly = monthly_stock(filtered_all)
         trend = mom_yoy(monthly, pop_codes=pop_codes)
         st.plotly_chart(monthly_trend_line(monthly, lang), width="stretch")
+        st.caption(t("monthly_change_help", lang))
         st.plotly_chart(mom_yoy_bars(trend, lang), width="stretch")
 
         # Returns on full analytical base (not limited to selected stock types)
@@ -650,6 +683,8 @@ def main() -> None:
 
         with st.expander("MoM / YoY table"):
             show = trend.copy()
+            if "date" in show.columns:
+                show["date"] = pd.to_datetime(show["date"]).dt.strftime("%Y-%m-%d")
             for col in ["mom", "yoy", "female_share", "children_share"]:
                 if col in show.columns:
                     show[col] = show[col].map(
@@ -673,14 +708,9 @@ def main() -> None:
             choropleth_hosts(breakdown, lang, wca_iso3=wca_iso3 or None),
             width="stretch",
         )
-        st.caption(t("corridors", lang))
         st.plotly_chart(corridor_map(flows, lang), width="stretch")
 
     with tab_territory:
-        hot = admin1_hotspots(current, previous, top_n=15)
-        if not hot.empty:
-            st.plotly_chart(hotspot_bar(hot, lang), width="stretch")
-
         profile_options = host_options["asylum_iso3"].tolist()
         profile_iso = st.selectbox(
             t("select_country", lang),
@@ -694,17 +724,37 @@ def main() -> None:
         )
 
         a1 = admin1_stock(current)
-        name_col = "asylum_name_fr" if lang == "fr" else "asylum_name_en"
 
         if profile_iso:
             country_df = current[current["asylum_iso3"] == profile_iso]
-            st.subheader(f"{t('country_profile', lang)} — {host_map.get(profile_iso, profile_iso)}")
+            country_name = host_map.get(profile_iso, profile_iso)
+            st.subheader(f"{t('country_profile', lang)} — {country_name}")
             c_kpi = kpi_snapshot(country_df, previous[previous["asylum_iso3"] == profile_iso])
             k1, k2, k3, k4 = st.columns(4)
             k1.metric(t("kpi_total", lang), _fmt_int(c_kpi["total"]))
             k2.metric(t("kpi_ref_asy", lang), _fmt_int(c_kpi.get("ref_asy")))
             k3.metric(t("kpi_idp", lang), _fmt_int(c_kpi.get("idp")))
             k4.metric(t("kpi_mom", lang), _fmt_pct(c_kpi.get("mom")))
+
+            points = admin2_map_points(
+                country_df, geoloc, profile_iso, countries_df=countries
+            )
+            st.plotly_chart(
+                admin2_residence_map(points, lang, country_name),
+                width="stretch",
+            )
+            if points.empty:
+                st.caption(
+                    "Aucune coordonnée disponible pour ce pays (centroïde introuvable)."
+                    if lang == "fr"
+                    else "No coordinates available for this country (centroid not found)."
+                )
+            elif "geo_level" in points.columns and (points["geo_level"] == "country").all():
+                st.caption(
+                    "Localisation approximative au centroïde du pays (Admin1/2 indisponibles)."
+                    if lang == "fr"
+                    else "Approximate location at country centroid (Admin1/2 unavailable)."
+                )
 
             c_by_type = (
                 country_df.groupby("pop_code", as_index=False)["total"]
@@ -734,8 +784,8 @@ def main() -> None:
             a2_c = admin2_stock(country_df)
             col_a, col_b = st.columns(2)
             with col_a:
-                st.markdown(f"**{t('admin1', lang)}**")
                 if a1_c.empty:
+                    st.markdown(f"**{t('admin1', lang)}**")
                     st.info("—")
                 else:
                     top_a1 = a1_c.groupby("coa_admin1", as_index=False)["total"].sum()
@@ -750,8 +800,8 @@ def main() -> None:
                         width="stretch",
                     )
             with col_b:
-                st.markdown(f"**{t('admin2', lang)}**")
                 if a2_c.empty:
+                    st.markdown(f"**{t('admin2', lang)}**")
                     st.info("—")
                 else:
                     top_a2 = a2_c.groupby(["coa_admin2", "coa_admin1"], as_index=False)[
@@ -773,47 +823,52 @@ def main() -> None:
                         width="stretch",
                     )
         else:
-            st.markdown(f"**{t('admin1', lang)}**")
-            if a1.empty:
-                st.info("—")
-            else:
-                top_a1 = a1.groupby(["coa_admin1", name_col], as_index=False)["total"].sum()
-                top_a1["label"] = (
-                    top_a1["coa_admin1"] + " (" + top_a1[name_col].astype(str) + ")"
-                )
-                st.plotly_chart(
-                    top_bar(
-                        top_a1.sort_values("total", ascending=False),
-                        "label",
-                        t("admin1", lang),
-                        n=15,
-                        lang=lang,
-                    ),
-                    width="stretch",
-                )
             st.info(
-                "Sélectionnez un pays pour la fiche détaillée et Admin2."
+                "Sélectionnez un pays pour afficher la fiche détaillée."
                 if lang == "fr"
-                else "Select a country for the detailed profile and Admin2."
+                else "Select a country to display the detailed profile."
             )
 
     with tab_shelter:
+        acc_share = accommodation_share_ref_asy(current)
+        if not acc_share.empty:
+            st.plotly_chart(accommodation_share_pie(acc_share, lang), width="stretch")
+            order = ["out-of-camp", "camp", "unknown"]
+            share_sorted = acc_share.copy()
+            share_sorted["_ord"] = share_sorted["accommodation_type"].map(
+                {k: i for i, k in enumerate(order)}
+            ).fillna(99)
+            share_sorted = share_sorted.sort_values("_ord")
+            cols = st.columns(len(share_sorted))
+            for col, (_, row) in zip(cols, share_sorted.iterrows()):
+                label = {
+                    "camp": "Camp / sites aménagés" if lang == "fr" else "Camp / planned sites",
+                    "out-of-camp": "Hors camp / zones urbaines" if lang == "fr" else "Out of camp / urban areas",
+                    "unknown": "Inconnu / non renseigné" if lang == "fr" else "Unknown / not reported",
+                }.get(row["accommodation_type"], row["accommodation_type"])
+                col.metric(label, f"{row['share']*100:.1f}%", _fmt_int(row["total"]))
+
         acc = accommodation_stock(current)
-        st.plotly_chart(accommodation_bar(acc, lang), width="stretch")
-        if not acc.empty:
-            acc_show = acc.copy()
-            acc_show["pop"] = acc_show["pop_code"].map(lambda c: pop_label(c, lang))
-            st.dataframe(
-                acc_show[["accommodation_type", "pop", "total"]].rename(
-                    columns={
-                        "accommodation_type": t("accommodation", lang),
-                        "pop": t("pop_types", lang),
-                        "total": t("total_population", lang),
-                    }
-                ),
-                width="stretch",
-                hide_index=True,
-            )
+        with st.expander(
+            (t("accommodation", lang) + " — détail")
+            if lang == "fr"
+            else (t("accommodation", lang) + " — detail")
+        ):
+            st.plotly_chart(accommodation_bar(acc, lang), width="stretch")
+            if not acc.empty:
+                acc_show = acc.copy()
+                acc_show["pop"] = acc_show["pop_code"].map(lambda c: pop_label(c, lang))
+                st.dataframe(
+                    acc_show[["accommodation_type", "pop", "total"]].rename(
+                        columns={
+                            "accommodation_type": t("accommodation", lang),
+                            "pop": t("pop_types", lang),
+                            "total": t("total_population", lang),
+                        }
+                    ),
+                    width="stretch",
+                    hide_index=True,
+                )
 
         st.caption(t("psn_note", lang))
         psn_m = (
@@ -858,6 +913,108 @@ def main() -> None:
                     top_bar(agg_c, name_c, t("psn_by_country", lang), lang=lang),
                     width="stretch",
                 )
+
+    with tab_reports:
+        from src.reports import BUILDERS, REPORT_CATALOG
+
+        st.caption(t("reports_intro", lang))
+        report_country = st.selectbox(
+            t("report_country", lang),
+            options=[""] + host_options["asylum_iso3"].tolist(),
+            format_func=lambda c: (
+                ("— " + ("choisir un pays" if lang == "fr" else "select a country") + " —")
+                if c == ""
+                else host_map.get(c, c)
+            ),
+            key="report_country_iso",
+        )
+
+        def _build_report(rid: str) -> bytes:
+            if rid == "flash":
+                return BUILDERS[rid](
+                    lang=lang,
+                    month=month,
+                    month_label=month_label,
+                    current=current,
+                    previous=previous,
+                    pop_codes=pop_codes,
+                )
+            if rid == "country":
+                return BUILDERS[rid](
+                    lang=lang,
+                    month_label=month_label,
+                    country_iso3=report_country,
+                    country_name=host_map.get(report_country, report_country),
+                    current=current,
+                    previous=previous,
+                )
+            if rid == "trend":
+                return BUILDERS[rid](
+                    lang=lang,
+                    filtered_all=filtered_all,
+                    pop_codes=pop_codes,
+                    base=base,
+                    selected_hosts=selected_hosts or None,
+                )
+            if rid == "corridors":
+                return BUILDERS[rid](
+                    lang=lang,
+                    month_label=month_label,
+                    current=current,
+                    wca_iso3=wca_iso3 or None,
+                )
+            if rid == "methodology":
+                return BUILDERS[rid](lang=lang, current=current)
+            if rid == "shelter":
+                return BUILDERS[rid](
+                    lang=lang, month_label=month_label, current=current
+                )
+            if rid == "psn":
+                return BUILDERS[rid](
+                    lang=lang,
+                    month=month,
+                    month_label=month_label,
+                    psn_raw=psn_raw,
+                    total_psn_raw=total_psn_raw,
+                    selected_hosts=selected_hosts or None,
+                )
+            return b""
+
+        for meta in REPORT_CATALOG:
+            rid = meta["id"]
+            st.markdown(f"**{meta['title'][lang]}**")
+            st.caption(meta["desc"][lang])
+            needs_country = meta.get("needs_country", False)
+            if needs_country and not report_country:
+                st.info(
+                    "Sélectionnez un pays ci-dessus pour activer ce rapport."
+                    if lang == "fr"
+                    else "Select a country above to enable this report."
+                )
+            else:
+                gen_key = f"gen_{rid}"
+                pdf_key = f"pdf_bytes_{rid}"
+                c1, c2 = st.columns([1, 2])
+                with c1:
+                    if st.button(
+                        "Générer" if lang == "fr" else "Generate",
+                        key=gen_key,
+                    ):
+                        try:
+                            st.session_state[pdf_key] = _build_report(rid)
+                        except Exception as exc:  # noqa: BLE001
+                            st.session_state.pop(pdf_key, None)
+                            st.error(f"{meta['title'][lang]}: {exc}")
+                with c2:
+                    if pdf_key in st.session_state and st.session_state[pdf_key]:
+                        st.download_button(
+                            t("download_pdf", lang),
+                            data=st.session_state[pdf_key],
+                            file_name=f"msr_wca_{rid}_{month}.pdf",
+                            mime="application/pdf",
+                            key=f"dl_{rid}",
+                        )
+            st.markdown("---")
 
     with tab_forecast:
         st.info(t("forecast_disclaimer", lang))

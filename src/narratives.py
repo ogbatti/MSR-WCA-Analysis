@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from src.config import POP_TYPE_LABELS
+from src.reference_data import format_month_label
 
 
 def _fmt(n: float | None, digits: int = 0) -> str:
@@ -45,7 +46,7 @@ def build_overview_narrative(
             else "La variation mensuelle n'est pas disponible pour ce point de comparaison."
         )
         return (
-            f"### Lecture du mois {month}\n\n"
+            f"### Commentaires du mois {month}\n\n"
             f"Pour les populations sélectionnées (**{pops}**), la population totale régionale s'élève à "
             f"**{_fmt(kpi.get('total'))}** personnes dans **{kpi.get('countries', 0)}** pays d'asile, "
             f"issues de **{kpi.get('origins', 0)}** pays/territoires d'origine.\n\n"
@@ -53,10 +54,7 @@ def build_overview_narrative(
             f"- Part des enfants (0–17, lorsque ventilé) : **{_pct(kpi.get('children_share'))}**\n"
             f"- {mom_txt}\n\n"
             f"**Principaux pays d'accueil :** {hosts or '—'}.\n\n"
-            f"**Principaux pays d'origine :** {origins or '—'}.\n\n"
-            f"_Note méthodologique : priorité à l'agrégation `detailed` (admin/localité) ; "
-            f"bascule automatique sur `total` pour les types uniquement reportés à ce niveau "
-            f"(ex. PDI, apatrides), sans mélanger les niveaux d'agrégation._"
+            f"**Principaux pays d'origine :** {origins or '—'}."
         )
 
     mom_txt = (
@@ -66,7 +64,7 @@ def build_overview_narrative(
         else "Month-on-month change is not available for this comparison point."
     )
     return (
-        f"### Reading for {month}\n\n"
+        f"### Comments for {month}\n\n"
         f"For the selected populations (**{pops}**), the regional total population stands at "
         f"**{_fmt(kpi.get('total'))}** people across **{kpi.get('countries', 0)}** countries of asylum, "
         f"from **{kpi.get('origins', 0)}** countries/territories of origin.\n\n"
@@ -74,10 +72,7 @@ def build_overview_narrative(
         f"- Children share (0–17, when disaggregated): **{_pct(kpi.get('children_share'))}**\n"
         f"- {mom_txt}\n\n"
         f"**Top host countries:** {hosts or '—'}.\n\n"
-        f"**Top countries of origin:** {origins or '—'}.\n\n"
-        f"_Method note: prefer ActivityInfo `detailed` aggregation (admin/locality); "
-        f"automatically fall back to `total` for types only reported at that level "
-        f"(e.g. IDPs, stateless), without mixing aggregation levels._"
+        f"**Top countries of origin:** {origins or '—'}."
     )
 
 
@@ -92,18 +87,18 @@ def build_trend_narrative(lang: str, trend_df, focus_label: str) -> str:
     last = trend_df.iloc[-1]
     delta = last["total"] - first["total"]
     pct = delta / first["total"] if first["total"] else None
+    start = format_month_label(str(first["year_month"]), lang)
+    end = format_month_label(str(last["year_month"]), lang)
     if lang == "fr":
         direction = "en hausse" if delta > 0 else "en baisse" if delta < 0 else "stable"
         return (
-            f"Entre **{first['year_month']}** et **{last['year_month']}**, la population totale "
-            f"({focus_label}) est **{direction}** de {_fmt(delta)} personnes ({_pct(pct)}). "
-            f"La dernière valeur observée est {_fmt(last['total'])}."
+            f"Entre **{start.lower()}** et **{end.lower()}**, la population totale "
+            f"({focus_label}) est **{direction}** de {_fmt(delta)} personnes ({_pct(pct)})."
         )
     direction = "up" if delta > 0 else "down" if delta < 0 else "stable"
     return (
-        f"Between **{first['year_month']}** and **{last['year_month']}**, the total population "
-        f"({focus_label}) is **{direction}** by {_fmt(delta)} people ({_pct(pct)}). "
-        f"The latest observed value is {_fmt(last['total'])}."
+        f"Between **{start}** and **{end}**, the total population "
+        f"({focus_label}) is **{direction}** by {_fmt(delta)} people ({_pct(pct)})."
     )
 
 
@@ -138,14 +133,10 @@ def build_forecast_narrative(lang: str, forecast_df, pop_code: str, horizon: int
 
     if lang == "fr":
         lines.append(
-            "\nCes projections ne sont **pas des prévisions statistiques pures** : "
-            "elles simulent l'effet combiné de la croissance résiduelle, des chocs de conflit "
-            "et des taux de retour/solutions jusqu'en 2036."
+            "\n_Ces projections sont illustratives et reposent sur des hypothèses métier._"
         )
     else:
         lines.append(
-            "\nThese projections are **not pure statistical forecasts**: "
-            "they simulate the combined effect of residual growth, conflict shocks "
-            "and return/solutions rates through 2036."
+            "\n_These projections are illustrative and rest on business assumptions._"
         )
     return "\n".join(lines)
