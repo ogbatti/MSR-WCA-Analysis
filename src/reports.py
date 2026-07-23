@@ -147,25 +147,79 @@ def _pct(n: float | None) -> str:
 
 
 def _font_paths() -> tuple[str | None, str | None]:
-    """Locate DejaVu fonts shipped with fpdf2 or common system fonts."""
+    """Locate a Unicode TTF (project assets, fpdf, system fonts)."""
+    root = Path(__file__).resolve().parents[1]
+    candidates = [
+        (
+            root / "assets" / "fonts" / "DejaVuSans.ttf",
+            root / "assets" / "fonts" / "DejaVuSans-Bold.ttf",
+        ),
+        (
+            Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
+            Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
+        ),
+        (
+            Path("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"),
+            Path("/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"),
+        ),
+        (
+            Path(r"C:\Windows\Fonts\arial.ttf"),
+            Path(r"C:\Windows\Fonts\arialbd.ttf"),
+        ),
+        (
+            Path(r"C:\Windows\Fonts\calibri.ttf"),
+            Path(r"C:\Windows\Fonts\calibrib.ttf"),
+        ),
+    ]
     try:
         import fpdf
 
-        root = Path(fpdf.__file__).resolve().parent
-        regular = root / "font" / "DejaVuSans.ttf"
-        bold = root / "font" / "DejaVuSans-Bold.ttf"
-        if regular.exists():
-            return str(regular), str(bold) if bold.exists() else str(regular)
+        fpdf_root = Path(fpdf.__file__).resolve().parent
+        candidates.insert(
+            0,
+            (
+                fpdf_root / "font" / "DejaVuSans.ttf",
+                fpdf_root / "font" / "DejaVuSans-Bold.ttf",
+            ),
+        )
     except Exception:
         pass
-    windir = Path(r"C:\Windows\Fonts")
-    for reg, bold in (
-        (windir / "arial.ttf", windir / "arialbd.ttf"),
-        (windir / "calibri.ttf", windir / "calibrib.ttf"),
-    ):
+
+    for reg, bold in candidates:
         if reg.exists():
             return str(reg), str(bold if bold.exists() else reg)
     return None, None
+
+
+_PDF_CHAR_MAP = str.maketrans(
+    {
+        "\u2014": "-",  # —
+        "\u2013": "-",  # –
+        "\u2012": "-",
+        "\u2018": "'",
+        "\u2019": "'",
+        "\u201c": '"',
+        "\u201d": '"',
+        "\u00ab": '"',
+        "\u00bb": '"',
+        "\u2026": "...",
+        "\u00a0": " ",
+        "\u2022": "-",
+        "\u2192": "->",  # →
+        "\u00b7": "-",  # · (keep simple for core fonts)
+        "\u2212": "-",
+    }
+)
+
+
+def _safe_pdf_text(text: object, *, unicode_font: bool) -> str:
+    """Normalize text for PDF; strip unsupported glyphs when using core fonts."""
+    if text is None:
+        return ""
+    s = str(text).translate(_PDF_CHAR_MAP)
+    if unicode_font:
+        return s
+    return s.encode("latin-1", errors="replace").decode("latin-1")
 
 
 class MsrPdf(FPDF):
@@ -183,17 +237,45 @@ class MsrPdf(FPDF):
         self.data_version = data_version or ""
         self.month_label = month_label or ""
         self._skip_header = False
+        self._unicode_font = False
         self.set_auto_page_break(auto=True, margin=18)
         reg, bold = _font_paths()
         if reg:
             self.add_font("Body", "", reg)
             self.add_font("Body", "B", bold or reg)
             self.font_family = "Body"
+            self._unicode_font = True
         else:
             self.font_family = "Helvetica"
+            self._unicode_font = False
         if with_cover:
             self.write_cover()
         self.add_page()
+
+    def _t(self, text: object) -> str:
+        return _safe_pdf_text(text, unicode_font=self._unicode_font)
+
+    def cell(self, *args, **kwargs):  # noqa: ANN002, ANN003
+        if "text" in kwargs:
+            kwargs["text"] = self._t(kwargs["text"])
+        elif "txt" in kwargs:
+            kwargs["txt"] = self._t(kwargs["txt"])
+        elif len(args) >= 3:
+            args = list(args)
+            args[2] = self._t(args[2])
+            args = tuple(args)
+        return super().cell(*args, **kwargs)
+
+    def multi_cell(self, *args, **kwargs):  # noqa: ANN002, ANN003
+        if "text" in kwargs:
+            kwargs["text"] = self._t(kwargs["text"])
+        elif "txt" in kwargs:
+            kwargs["txt"] = self._t(kwargs["txt"])
+        elif len(args) >= 3:
+            args = list(args)
+            args[2] = self._t(args[2])
+            args = tuple(args)
+        return super().multi_cell(*args, **kwargs)
 
     def header(self) -> None:
         if self._skip_header:
@@ -205,8 +287,10 @@ class MsrPdf(FPDF):
         self.set_text_color(80, 80, 80)
         self.cell(0, 5, self.report_title, ln=True)
         if self.data_version:
+            self.set_x(self.l_margin)
             self.set_text_color(100, 100, 100)
             self.multi_cell(0, 4, self.data_version[:160])
+        self.set_x(self.l_margin)
         self.ln(2)
         self.set_draw_color(0, 114, 188)
         self.set_line_width(0.4)
@@ -218,18 +302,21 @@ class MsrPdf(FPDF):
         self._skip_header = True
         self.add_page()
         self.set_y(48)
+        self.set_x(self.l_margin)
         self.set_font(self.font_family, "B", 11)
         self.set_text_color(0, 114, 188)
         self.multi_cell(0, 7, "UNHCR · RBWCA · DIMA", align="C")
         self.ln(6)
+        self.set_x(self.l_margin)
         self.set_font(self.font_family, "B", 18)
         self.set_text_color(11, 55, 84)
         self.multi_cell(0, 10, self.report_title, align="C")
         self.ln(4)
         if self.month_label:
+            self.set_x(self.l_margin)
             self.set_font(self.font_family, "", 12)
             self.set_text_color(38, 38, 38)
-            label = "Reference month" if self.lang == "en" else "Mois de référence"
+            label = "Reference month" if self.lang == "en" else "Mois de reference"
             self.multi_cell(0, 7, f"{label} : {self.month_label}", align="C")
         self.ln(8)
         self.set_draw_color(0, 114, 188)
@@ -237,43 +324,48 @@ class MsrPdf(FPDF):
         y = self.get_y()
         self.line(60, y, 150, y)
         self.ln(10)
+        self.set_x(self.l_margin)
         self.set_font(self.font_family, "B", 10)
         self.set_text_color(0, 114, 188)
-        self.multi_cell(0, 6, "Sources" if self.lang == "en" else "Sources")
+        self.multi_cell(0, 6, "Sources")
+        self.set_x(self.l_margin)
         self.set_font(self.font_family, "", 9)
         self.set_text_color(38, 38, 38)
         if self.lang == "fr":
             self.multi_cell(
                 0,
                 5,
-                "ActivityInfo — base « WCA DIMA Statistics & Analysis », formulaire population. "
-                "Agrégation : priorité detailed, bascule total par type si nécessaire.",
+                "ActivityInfo - base WCA DIMA Statistics & Analysis, formulaire population. "
+                "Aggregation : priorite detailed, bascule total par type si necessaire.",
             )
         else:
             self.multi_cell(
                 0,
                 5,
-                "ActivityInfo — “WCA DIMA Statistics & Analysis” database, population form. "
+                "ActivityInfo - WCA DIMA Statistics & Analysis database, population form. "
                 "Aggregation: prefer detailed, fall back to total per type when needed.",
             )
         if self.data_version:
             self.ln(2)
+            self.set_x(self.l_margin)
             self.set_font(self.font_family, "", 8)
             self.set_text_color(80, 80, 80)
             self.multi_cell(0, 4.5, self.data_version)
         self.ln(8)
+        self.set_x(self.l_margin)
         self.set_font(self.font_family, "B", 10)
         self.set_text_color(0, 114, 188)
         self.multi_cell(0, 6, "Disclaimer" if self.lang == "en" else "Avertissement")
+        self.set_x(self.l_margin)
         self.set_font(self.font_family, "", 9)
         self.set_text_color(38, 38, 38)
         if self.lang == "fr":
             self.multi_cell(
                 0,
                 5,
-                "Document généré automatiquement pour usage interne DIMA / RBWCA. "
-                "Les chiffres reflètent l'extrait ActivityInfo indiqué ci-dessus et les filtres "
-                "appliqués lors de la génération. Ne pas diffuser hors circuit validé sans revue.",
+                "Document genere automatiquement pour usage interne DIMA / RBWCA. "
+                "Les chiffres refletent l'extrait ActivityInfo indique ci-dessus et les filtres "
+                "appliques lors de la generation. Ne pas diffuser hors circuit valide sans revue.",
             )
         else:
             self.multi_cell(
@@ -284,12 +376,13 @@ class MsrPdf(FPDF):
                 "Do not circulate outside validated channels without review.",
             )
         self.ln(12)
+        self.set_x(self.l_margin)
         self.set_font(self.font_family, "", 8)
         self.set_text_color(120, 120, 120)
         self.multi_cell(
             0,
             5,
-            f"Generated {date.today().isoformat()} · © UNHCR",
+            f"Generated {date.today().isoformat()} - UNHCR",
             align="C",
         )
         self._skip_header = False

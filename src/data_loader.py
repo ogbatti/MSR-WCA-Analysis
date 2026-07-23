@@ -100,12 +100,12 @@ def format_data_version(meta: dict[str, Any], lang: str = "fr") -> str:
     span = f"{dmin} → {dmax}" if dmin and dmax else "—"
     if lang == "fr":
         return (
-            f"Données ActivityInfo · extrait {extracted} · source {source_lbl}"
-            f" · {n:,} lignes · période {span}".replace(",", " ")
+            f"Donnees ActivityInfo - extrait {extracted} - source {source_lbl}"
+            f" - {n:,} lignes - periode {span}".replace(",", " ")
         )
     return (
-        f"ActivityInfo data · extracted {extracted} · source {source_lbl}"
-        f" · {n:,} rows · period {span}"
+        f"ActivityInfo data - extracted {extracted} - source {source_lbl}"
+        f" - {n:,} rows - period {span}"
     )
 
 
