@@ -61,6 +61,7 @@ admin1_stock = _indicators_mod.admin1_stock
 admin1_map_points = _indicators_mod.admin1_map_points
 admin2_map_points = _indicators_mod.admin2_map_points
 admin2_stock = _indicators_mod.admin2_stock
+residence_map_points = _indicators_mod.residence_map_points
 accommodation_share_ref_asy = _indicators_mod.accommodation_share_ref_asy
 accommodation_stock = _indicators_mod.accommodation_stock
 age_adult_detail = _indicators_mod.age_adult_detail
@@ -784,7 +785,7 @@ def main() -> None:
             k3.metric(t("kpi_idp", lang), _fmt_int(c_kpi.get("idp")))
             k4.metric(t("kpi_mom", lang), _fmt_pct(c_kpi.get("mom")))
 
-            points = admin1_map_points(
+            points = residence_map_points(
                 country_df, geoloc, profile_iso, countries_df=countries
             )
             st.plotly_chart(
@@ -797,12 +798,26 @@ def main() -> None:
                     if lang == "fr"
                     else "No coordinates available for this country (centroid not found)."
                 )
-            elif "geo_level" in points.columns and (points["geo_level"] == "country").all():
-                st.caption(
-                    "Localisation approximative au centroïde du pays (Admin1 indisponible)."
-                    if lang == "fr"
-                    else "Approximate location at country centroid (Admin1 unavailable)."
-                )
+            elif "geo_level" in points.columns:
+                levels = set(points["geo_level"].dropna().astype(str))
+                if levels == {"country"}:
+                    st.caption(
+                        "Localisation au centroïde du pays (Admin1/Admin2 non renseignés)."
+                        if lang == "fr"
+                        else "Located at country centroid (Admin1/Admin2 not reported)."
+                    )
+                elif "admin2" in levels:
+                    st.caption(
+                        "Niveau géographique : Admin2 (lorsqu'il est renseigné)."
+                        if lang == "fr"
+                        else "Geographic level: Admin2 (when reported)."
+                    )
+                elif "admin1" in levels:
+                    st.caption(
+                        "Niveau géographique : Admin1 (Admin2 non renseigné)."
+                        if lang == "fr"
+                        else "Geographic level: Admin1 (Admin2 not reported)."
+                    )
 
             c_by_type = (
                 country_df.groupby("pop_code", as_index=False)["total"]

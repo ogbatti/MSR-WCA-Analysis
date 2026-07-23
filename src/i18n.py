@@ -39,8 +39,8 @@ STRINGS = {
         "en": "REF + ASY — camp vs out of camp",
     },
     "residence_map": {
-        "fr": "Carte des zones de résidence (Admin1)",
-        "en": "Residence areas map (Admin1)",
+        "fr": "Carte des zones de résidence (Admin2 → Admin1 → pays)",
+        "en": "Residence areas map (Admin2 → Admin1 → country)",
     },
     "shelter_psn": {"fr": "Hébergement & PSN", "en": "Shelter & PSN"},
     "admin": {"fr": "Admin1 / Admin2", "en": "Admin1 / Admin2"},

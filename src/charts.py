@@ -997,11 +997,34 @@ def hosts_composition_pie_map(
 
 
 def admin2_residence_map(points: pd.DataFrame, lang: str, country_name: str) -> go.Figure:
-    title = (
-        f"Residence areas (Admin1) — {country_name}"
-        if lang == "en"
-        else f"Zones de résidence (Admin1) — {country_name}"
-    )
+    level = None
+    if points is not None and not points.empty and "geo_level" in points.columns:
+        levels = points["geo_level"].dropna().astype(str).tolist()
+        if levels:
+            # Prefer the finest level present among points
+            if "admin2" in levels:
+                level = "admin2"
+            elif "admin1" in levels:
+                level = "admin1"
+            else:
+                level = "country"
+    level_lbl = {
+        "admin2": "Admin2",
+        "admin1": "Admin1",
+        "country": "pays" if lang == "fr" else "country",
+    }.get(level or "", "")
+    if lang == "en":
+        title = (
+            f"Residence areas ({level_lbl}) — {country_name}"
+            if level_lbl
+            else f"Residence areas — {country_name}"
+        )
+    else:
+        title = (
+            f"Zones de résidence ({level_lbl}) — {country_name}"
+            if level_lbl
+            else f"Zones de résidence — {country_name}"
+        )
     if points is None or points.empty:
         fig = go.Figure()
         apply_unhcr_layout(fig, title=title)

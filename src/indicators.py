@@ -553,20 +553,23 @@ def admin1_map_points(
         ]
 
     rows: list[dict] = []
-    by_a1 = (
-        focus.dropna(subset=["coa_admin1"])
-        .groupby(["coa_admin1", "pop_code"], as_index=False)["total"]
-        .sum()
-    )
+    if "coa_admin1" not in focus.columns:
+        by_a1 = pd.DataFrame()
+    else:
+        a1 = focus["coa_admin1"].fillna("").astype(str).str.strip()
+        by_a1 = (
+            focus.loc[a1 != ""]
+            .assign(coa_admin1=a1[a1 != ""])
+            .groupby(["coa_admin1", "pop_code"], as_index=False)["total"]
+            .sum()
+        )
     for _, r in by_a1.iterrows():
         match1 = _match_name(g1, "admin1_name", r["coa_admin1"])
         if not match1.empty:
             lat = float(match1.iloc[0]["latitude"])
             lon = float(match1.iloc[0]["longitude"])
-            geo_level = "admin1"
         elif country_lat is not None:
             lat, lon = country_lat, country_lon
-            geo_level = "country"
         else:
             continue
         rows.append(
@@ -578,7 +581,7 @@ def admin1_map_points(
                 "total": r["total"],
                 "lat": lat,
                 "lon": lon,
-                "geo_level": geo_level,
+                "geo_level": "admin1",
             }
         )
 
@@ -605,18 +608,22 @@ def admin1_map_points(
     return pd.DataFrame(rows).sort_values("total", ascending=False) if rows else pd.DataFrame()
 
 
-def admin2_map_points(
+def _admin_filled(series: pd.Series | None) -> bool:
+    if series is None:
+        return False
+    s = series.fillna("").astype(str).str.strip()
+    return bool((s != "").any())
+
+
+def residence_map_points(
     pop_df: pd.DataFrame,
     geoloc_df: pd.DataFrame,
     asylum_iso3: str,
     countries_df: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     """
-    Map points for a host country profile.
-
-    Prefer Admin2 geoloc, then Admin1, then a country-centroid bubble.
-    Always returns at least one point when the country has population and a
-    resolvable coordinate (any admin level or country centroid).
+    Residence map points with cascade:
+    Admin2 (if filled) → Admin1 (if filled) → whole country.
     """
     if pop_df.empty:
         return pd.DataFrame()
@@ -625,78 +632,113 @@ def admin2_map_points(
     if focus.empty:
         return pd.DataFrame()
 
-    # Prefer stock types for residence maps; fall back to all present types
     preferred = focus[focus["pop_code"].isin(["REF", "ASY", "IDP", "STA"])]
     focus = preferred if not preferred.empty else focus
 
-    geo = geoloc_df.copy() if geoloc_df is not None and not geoloc_df.empty else pd.DataFrame()
-    if not geo.empty and "iso3" in geo.columns:
-        geo = geo[geo["iso3"].astype(str).str.upper() == str(asylum_iso3).upper()]
-    g2 = (
-        geo[geo["level"] == "admin2"].copy()
-        if not geo.empty and "level" in geo.columns
-        else pd.DataFrame()
-    )
-    g1 = (
-        geo[geo["level"] == "admin1"].copy()
-        if not geo.empty and "level" in geo.columns
-        else pd.DataFrame()
-    )
+    has_admin2 = _admin_filled(focus["coa_admin2"]) if "coa_admin2" in focus.columns else False
+    has_admin1 = _admin_filled(focus["coa_admin1"]) if "coa_admin1" in focus.columns else False
+
+    if has_admin2:
+        geo = geoloc_df.copy() if geoloc_df is not None and not geoloc_df.empty else pd.DataFrame()
+        if not geo.empty and "iso3" in geo.columns:
+            geo = geo[geo["iso3"].astype(str).str.upper() == str(asylum_iso3).upper()]
+        g2 = (
+            geo[geo["level"] == "admin2"].copy()
+            if not geo.empty and "level" in geo.columns
+            else pd.DataFrame()
+        )
+        g1 = (
+            geo[geo["level"] == "admin1"].copy()
+            if not geo.empty and "level" in geo.columns
+            else pd.DataFrame()
+        )
+        country_xy = _country_centroid(focus, geoloc_df, asylum_iso3, countries_df)
+        country_lat = country_xy[0] if country_xy else None
+        country_lon = country_xy[1] if country_xy else None
+
+        def _match_name(frame: pd.DataFrame, col: str, name: object) -> pd.DataFrame:
+            if frame.empty or col not in frame.columns or name is None or pd.isna(name):
+                return pd.DataFrame()
+            return frame[
+                frame[col].astype(str).str.strip().str.lower()
+                == str(name).strip().lower()
+            ]
+
+        a2_mask = focus["coa_admin2"].fillna("").astype(str).str.strip() != ""
+        subset = focus.loc[a2_mask].copy()
+        subset["coa_admin2"] = subset["coa_admin2"].astype(str).str.strip()
+        group_cols = ["asylum_iso3", "coa_admin2", "pop_code"]
+        if "coa_admin1" in subset.columns:
+            group_cols.insert(1, "coa_admin1")
+        by_a2 = subset.groupby(group_cols, as_index=False, dropna=False)["total"].sum()
+        rows: list[dict] = []
+        for _, r in by_a2.iterrows():
+            lat = lon = None
+            match2 = _match_name(g2, "admin2_name", r["coa_admin2"])
+            if not match2.empty:
+                lat = float(match2.iloc[0]["latitude"])
+                lon = float(match2.iloc[0]["longitude"])
+            else:
+                match1 = _match_name(g1, "admin1_name", r.get("coa_admin1"))
+                if not match1.empty:
+                    lat = float(match1.iloc[0]["latitude"])
+                    lon = float(match1.iloc[0]["longitude"])
+                elif country_lat is not None:
+                    lat, lon = country_lat, country_lon
+            if lat is None:
+                continue
+            rows.append(
+                {
+                    "label": f"{r['coa_admin2']} ({r['pop_code']})",
+                    "admin2": r["coa_admin2"],
+                    "admin1": r.get("coa_admin1"),
+                    "pop_code": r["pop_code"],
+                    "total": r["total"],
+                    "lat": lat,
+                    "lon": lon,
+                    # Aggregation level chosen by cascade (not geocode match quality)
+                    "geo_level": "admin2",
+                }
+            )
+        if rows:
+            return pd.DataFrame(rows).sort_values("total", ascending=False)
+        # Admin2 names present but no geocode → try Admin1 / country
+        if has_admin1:
+            return admin1_map_points(pop_df, geoloc_df, asylum_iso3, countries_df)
+
+    if has_admin1:
+        return admin1_map_points(pop_df, geoloc_df, asylum_iso3, countries_df)
+
+    # Neither Admin1 nor Admin2: whole country
     country_xy = _country_centroid(focus, geoloc_df, asylum_iso3, countries_df)
-    country_lat = country_xy[0] if country_xy else None
-    country_lon = country_xy[1] if country_xy else None
-
-    def _match_name(frame: pd.DataFrame, col: str, name: object) -> pd.DataFrame:
-        if frame.empty or col not in frame.columns or name is None or pd.isna(name):
-            return pd.DataFrame()
-        return frame[frame[col].astype(str).str.strip().str.lower() == str(name).strip().lower()]
-
-    rows: list[dict] = []
-
-    by_a2 = (
-        focus.dropna(subset=["coa_admin2"])
-        .groupby(
-            ["asylum_iso3", "coa_admin1", "coa_admin2", "pop_code"],
-            as_index=False,
-        )["total"]
-        .sum()
-    )
-    for _, r in by_a2.iterrows():
-        lat = lon = None
-        geo_level = "country"
-        match2 = _match_name(g2, "admin2_name", r["coa_admin2"])
-        if not match2.empty:
-            lat = float(match2.iloc[0]["latitude"])
-            lon = float(match2.iloc[0]["longitude"])
-            geo_level = "admin2"
-        else:
-            match1 = _match_name(g1, "admin1_name", r.get("coa_admin1"))
-            if not match1.empty:
-                lat = float(match1.iloc[0]["latitude"])
-                lon = float(match1.iloc[0]["longitude"])
-                geo_level = "admin1"
-            elif country_lat is not None:
-                lat, lon = country_lat, country_lon
-        if lat is None:
-            continue
+    if country_xy is None:
+        return pd.DataFrame()
+    country_lat, country_lon = country_xy
+    rows = []
+    for _, r in focus.groupby("pop_code", as_index=False)["total"].sum().iterrows():
         rows.append(
             {
-                "label": f"{r['coa_admin2']} ({r['pop_code']})",
-                "admin2": r["coa_admin2"],
-                "admin1": r.get("coa_admin1"),
+                "label": f"{asylum_iso3} ({r['pop_code']})",
+                "admin2": None,
+                "admin1": None,
                 "pop_code": r["pop_code"],
                 "total": r["total"],
-                "lat": lat,
-                "lon": lon,
-                "geo_level": geo_level,
+                "lat": country_lat,
+                "lon": country_lon,
+                "geo_level": "country",
             }
         )
+    return pd.DataFrame(rows).sort_values("total", ascending=False) if rows else pd.DataFrame()
 
-    if rows:
-        return pd.DataFrame(rows).sort_values("total", ascending=False)
 
-    # Fall back to Admin1 aggregation
-    return admin1_map_points(pop_df, geoloc_df, asylum_iso3, countries_df)
+def admin2_map_points(
+    pop_df: pd.DataFrame,
+    geoloc_df: pd.DataFrame,
+    asylum_iso3: str,
+    countries_df: pd.DataFrame | None = None,
+) -> pd.DataFrame:
+    """Alias — cascade Admin2 → Admin1 → country (see residence_map_points)."""
+    return residence_map_points(pop_df, geoloc_df, asylum_iso3, countries_df)
 
 
 def country_pop_breakdown(df: pd.DataFrame, lang: str = "fr") -> pd.DataFrame:
