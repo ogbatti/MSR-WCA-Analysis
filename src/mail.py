@@ -100,7 +100,7 @@ def build_invite_email(
 
 
 def send_email(msg: EmailMessage) -> str | None:
-    """Send ``msg``. Returns an error code, or ``None`` on success."""
+    """Send ``msg``. Returns an error message, or ``None`` on success."""
     cfg = _smtp_settings()
     if not cfg["host"] or not cfg["user"]:
         return "smtp_not_configured"
@@ -119,8 +119,14 @@ def send_email(msg: EmailMessage) -> str | None:
                 if cfg["password"]:
                     server.login(str(cfg["user"]), str(cfg["password"]))
                 server.send_message(msg)
-    except Exception:  # noqa: BLE001
-        return "smtp_send_failed"
+    except smtplib.SMTPAuthenticationError as exc:
+        return f"smtp_auth_failed:{exc.smtp_code} {exc.smtp_error!r}"
+    except smtplib.SMTPException as exc:
+        return f"smtp_send_failed:{exc}"
+    except OSError as exc:
+        return f"smtp_send_failed:{exc}"
+    except Exception as exc:  # noqa: BLE001
+        return f"smtp_send_failed:{exc}"
     return None
 
 

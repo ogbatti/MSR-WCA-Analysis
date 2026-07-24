@@ -9,7 +9,7 @@ import streamlit as st
 from src import auth as auth_mod
 from src.config import ROOT
 from src.i18n import t
-from src.mail import send_invite_notification, smtp_configured
+from src.mail import send_invite_notification
 from src.theme import LOGIN_PAGE_CSS
 
 _LOGO_PATH = ROOT / "assets" / "unhcr_logo.svg"
@@ -27,6 +27,13 @@ def _logo_data_uri() -> str | None:
 def _err_label(code: str | None, lang: str) -> str:
     if not code:
         return ""
+    detail = ""
+    if ":" in code and code.split(":", 1)[0] in {
+        "smtp_send_failed",
+        "smtp_auth_failed",
+    }:
+        code, detail = code.split(":", 1)
+        detail = detail.strip()
     mapping = {
         "invalid_email": t("auth_err_email", lang),
         "user_exists": t("auth_err_exists", lang),
@@ -37,8 +44,12 @@ def _err_label(code: str | None, lang: str) -> str:
         "need_bootstrap": t("auth_need_bootstrap", lang),
         "smtp_not_configured": t("auth_err_smtp_config", lang),
         "smtp_send_failed": t("auth_err_smtp_send", lang),
+        "smtp_auth_failed": t("auth_err_smtp_auth", lang),
     }
-    return mapping.get(code, code)
+    base = mapping.get(code, code)
+    if detail:
+        return f"{base} ({detail})"
+    return base
 
 
 def _login_lang_bar(lang: str) -> str:
@@ -218,8 +229,7 @@ def render_admin_users_panel(lang: str, user: auth_mod.AuthUser | None) -> None:
 
     st.markdown(f"### {t('auth_admin_title', lang)}")
     st.caption(t("auth_admin_help", lang))
-    if not smtp_configured():
-        st.info(t("auth_notify_smtp_hint", lang))
+    st.caption(t("auth_notify_locked_help", lang))
 
     with st.form("auth_invite_form"):
         c1, c2 = st.columns(2)
@@ -238,7 +248,12 @@ def render_admin_users_panel(lang: str, user: auth_mod.AuthUser | None) -> None:
                 ),
             )
         must_change = st.checkbox(t("auth_must_change_flag", lang), value=True)
-        send_notify = st.checkbox(t("auth_notify_send", lang), value=True)
+        send_notify = st.checkbox(
+            t("auth_notify_send", lang),
+            value=False,
+            disabled=True,
+            help=t("auth_notify_locked_help", lang),
+        )
         create = st.form_submit_button(t("auth_invite", lang), type="primary")
 
     if create:

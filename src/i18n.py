@@ -200,6 +200,10 @@ STRINGS = {
         "fr": "Envoyer une notification e-mail au nouvel utilisateur",
         "en": "Send an email notification to the new user",
     },
+    "auth_notify_locked_help": {
+        "fr": "Notification e-mail temporairement désactivée (SMTP AUTH bloqué sur le tenant). Notifiez manuellement.",
+        "en": "Email notification temporarily disabled (SMTP AUTH blocked on the tenant). Notify manually.",
+    },
     "auth_notify_ok": {
         "fr": "Notification envoyée à {email}.",
         "en": "Notification sent to {email}.",
@@ -215,6 +219,10 @@ STRINGS = {
     "auth_err_smtp_send": {
         "fr": "Compte créé, mais l’envoi de l’e-mail a échoué. Vérifiez la configuration SMTP ou notifiez manuellement.",
         "en": "Account created, but sending the email failed. Check SMTP settings or notify manually.",
+    },
+    "auth_err_smtp_auth": {
+        "fr": "Compte créé, mais authentification SMTP refusée (souvent MFA Office 365 : utilisez un mot de passe d’application, ou activez SMTP AUTH).",
+        "en": "Account created, but SMTP authentication was refused (often Office 365 MFA: use an app password, or enable SMTP AUTH).",
     },
     "auth_admin_title": {"fr": "Gestion des accès", "en": "Access management"},
     "auth_admin_help": {
