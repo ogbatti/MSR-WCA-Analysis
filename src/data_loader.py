@@ -244,16 +244,26 @@ def load_psn() -> pd.DataFrame:
 
 def analytical_subset(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Prefer `detailed` rows when a population type has them (admin-level grain).
-    Fall back to `total`, then `male_female`, for types like IDP/STA that are
-    only reported at coarser aggregation levels.
+    Prefer `detailed` rows when available for a population type in a given
+    asylum country; otherwise fall back to `total`, then `male_female`.
+
+    Aggregation is chosen per (pop_code, asylum country) so countries that
+    only publish coarser IDP/STA levels (e.g. Burkina Faso `male_female`)
+    are kept even when other countries publish `total` for the same type.
+    Levels are never mixed within the same country × population type.
     """
     if df.empty or "aggregation_type" not in df.columns:
         return df.copy()
 
     preference = ["detailed", "total", "male_female", "male_female_18_59"]
+    group_keys = ["pop_code"]
+    if "asylum_iso3" in df.columns:
+        group_keys.append("asylum_iso3")
+    elif "asylum_hcr3" in df.columns:
+        group_keys.append("asylum_hcr3")
+
     frames: list[pd.DataFrame] = []
-    for _, group in df.groupby("pop_code", dropna=False):
+    for _, group in df.groupby(group_keys, dropna=False):
         available = set(group["aggregation_type"].dropna().unique())
         chosen = next((a for a in preference if a in available), None)
         if chosen is None:

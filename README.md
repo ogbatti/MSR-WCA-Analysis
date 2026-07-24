@@ -93,7 +93,7 @@ The `.env` file is local-only and is not published to GitHub.
 | `total_psn` / `psn` | Persons with specific needs (not overall stock) |
 | `wca_countries_reference` | HCR3 ↔ ISO3 country mapping |
 
-Analytical totals prefer `aggregation_type = detailed` when available (REF, ASY, …). For types only published as `total` (notably **IDP** and **STA**), the dashboard falls back to those rows. Aggregation levels are never mixed within the same population type.
+Analytical totals prefer `aggregation_type = detailed` when available for a given country × population type (REF, ASY, …). If a country only publishes a coarser level for that type (e.g. Burkina Faso **IDP** as `male_female`, or **STA** as `total`), the dashboard falls back to that level for that country. Aggregation levels are never mixed within the same country × population type.
 
 Population types: REF, ASY, IDP, STA, RET, RDP, OOC, NOC.
 
