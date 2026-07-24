@@ -485,7 +485,7 @@ def main() -> None:
     compare_month = label_to_ym[compare_label]
 
     pop_options = sorted(base["pop_code"].dropna().unique().tolist())
-    default_pops = [c for c in ["REF", "ASY", "IDP", "STA"] if c in pop_options] or pop_options
+    default_pops = [c for c in pop_options if c != "NOC"] or pop_options
     pop_codes = st.sidebar.multiselect(
         t("pop_types", lang),
         options=pop_options,
