@@ -54,7 +54,24 @@ First load pulls ~175k population rows from ActivityInfo and caches them as `dat
 ```toml
 ACTIVITYINFO_TOKEN = "your_activityinfo_token"
 ACTIVITYINFO_DATABASE_ID = "c6whbx9kv7zwnux3"
+
+# Invitation-only access (no public sign-up)
+AUTH_ENABLED = "true"
+AUTH_ADMIN_EMAIL = "you@unhcr.org"
+AUTH_ADMIN_PASSWORD = "ChangeMe_now_8chars"
+AUTH_ADMIN_NAME = "DIMA Admin"
 ```
+
+See `.streamlit/secrets.auth.example.toml` for the full auth example.
+
+### Access control (invitation accounts)
+
+- No public registration: an **admin** creates users in **Informations → Gestion des accès**.
+- Users can **change their password** from the sidebar (**Mon compte**).
+- First admin is bootstrapped from `AUTH_ADMIN_*` secrets when `data/auth/users.json` is empty.
+- User store file: `data/auth/users.json` (gitignored; password hashes only).
+
+**Streamlit Cloud note:** the app filesystem is ephemeral. For durable accounts on Cloud, keep a private copy of `users.json` (or re-create users after redeploy), or later plug a persistent store. Locally, password changes persist in `users.json`.
 
 The `.env` file is local-only and is not published to GitHub.
 

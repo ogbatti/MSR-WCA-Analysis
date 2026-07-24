@@ -14,6 +14,8 @@ env/
 # Data cache
 data/cache/
 data/raw/
+data/auth/users.json
+data/auth/users.tmp
 *.parquet
 *.pkl
 

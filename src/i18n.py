@@ -144,6 +144,89 @@ STRINGS = {
         "fr": "Impossible de charger les données ActivityInfo. Vérifiez le token et le réseau.",
         "en": "Unable to load ActivityInfo data. Check the token and network.",
     },
+    "auth_login_title": {"fr": "Connexion", "en": "Sign in"},
+    "auth_login_help": {
+        "fr": "Accès sur invitation uniquement — aucun compte ne peut s'auto-inscrire.",
+        "en": "Invitation-only access — there is no public sign-up.",
+    },
+    "auth_email": {"fr": "E-mail", "en": "Email"},
+    "auth_password": {"fr": "Mot de passe", "en": "Password"},
+    "auth_sign_in": {"fr": "Se connecter", "en": "Sign in"},
+    "auth_sign_out": {"fr": "Se déconnecter", "en": "Sign out"},
+    "auth_account": {"fr": "Mon compte", "en": "My account"},
+    "auth_name": {"fr": "Nom", "en": "Name"},
+    "auth_role": {"fr": "Rôle", "en": "Role"},
+    "auth_role_admin": {"fr": "Administrateur", "en": "Admin"},
+    "auth_role_user": {"fr": "Utilisateur", "en": "User"},
+    "auth_change_password": {"fr": "Changer le mot de passe", "en": "Change password"},
+    "auth_password_current": {"fr": "Mot de passe actuel", "en": "Current password"},
+    "auth_password_new": {"fr": "Nouveau mot de passe", "en": "New password"},
+    "auth_password_confirm": {
+        "fr": "Confirmer le mot de passe",
+        "en": "Confirm password",
+    },
+    "auth_password_save": {"fr": "Enregistrer", "en": "Save"},
+    "auth_password_updated": {
+        "fr": "Mot de passe mis à jour.",
+        "en": "Password updated.",
+    },
+    "auth_must_change": {
+        "fr": "Pour des raisons de sécurité, veuillez définir un nouveau mot de passe.",
+        "en": "For security reasons, please set a new password.",
+    },
+    "auth_must_change_flag": {
+        "fr": "Exiger un changement à la première connexion",
+        "en": "Require change on first sign-in",
+    },
+    "auth_temp_password": {
+        "fr": "Mot de passe temporaire",
+        "en": "Temporary password",
+    },
+    "auth_invite": {"fr": "Créer le compte", "en": "Create account"},
+    "auth_invite_ok": {
+        "fr": "Compte créé pour {email}.",
+        "en": "Account created for {email}.",
+    },
+    "auth_admin_title": {"fr": "Gestion des accès", "en": "Access management"},
+    "auth_admin_help": {
+        "fr": "Créez des comptes sur invitation. Aucune inscription publique.",
+        "en": "Create invitation-only accounts. No public registration.",
+    },
+    "auth_active": {"fr": "Actif", "en": "Active"},
+    "auth_inactive": {"fr": "Inactif", "en": "Inactive"},
+    "auth_activate": {"fr": "Activer", "en": "Activate"},
+    "auth_deactivate": {"fr": "Désactiver", "en": "Deactivate"},
+    "auth_reset_password": {"fr": "Réinitialiser MDP", "en": "Reset password"},
+    "auth_err_credentials": {
+        "fr": "E-mail ou mot de passe incorrect.",
+        "en": "Invalid email or password.",
+    },
+    "auth_err_email": {"fr": "E-mail invalide.", "en": "Invalid email."},
+    "auth_err_exists": {
+        "fr": "Un compte existe déjà pour cet e-mail.",
+        "en": "An account already exists for this email.",
+    },
+    "auth_err_missing": {"fr": "Utilisateur introuvable.", "en": "User not found."},
+    "auth_err_pwd_short": {
+        "fr": "Le mot de passe doit contenir au moins 8 caractères.",
+        "en": "Password must be at least 8 characters.",
+    },
+    "auth_err_pwd_spaces": {
+        "fr": "Le mot de passe ne doit pas commencer ou finir par un espace.",
+        "en": "Password must not start or end with a space.",
+    },
+    "auth_err_pwd_current": {
+        "fr": "Mot de passe actuel incorrect.",
+        "en": "Current password is incorrect.",
+    },
+    "auth_err_pwd_mismatch": {
+        "fr": "Les mots de passe ne correspondent pas.",
+        "en": "Passwords do not match.",
+    },
+    "auth_need_bootstrap": {
+        "fr": "Aucun compte. Définissez AUTH_ADMIN_EMAIL et AUTH_ADMIN_PASSWORD dans les secrets, puis rechargez.",
+        "en": "No accounts yet. Set AUTH_ADMIN_EMAIL and AUTH_ADMIN_PASSWORD in secrets, then reload.",
+    },
 }
 
 

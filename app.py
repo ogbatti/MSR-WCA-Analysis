@@ -31,6 +31,8 @@ for _mod_name in (
     "src.forecasting",
     "src.reports",
     "src.data_loader",
+    "src.auth",
+    "src.auth_ui",
 ):
     if _mod_name in sys.modules:
         importlib.reload(sys.modules[_mod_name])
@@ -100,6 +102,7 @@ from src.narratives import (
 )
 from src.reference_data import format_month_label
 from src.theme import APP_CSS
+from src.auth_ui import render_admin_users_panel, render_auth_sidebar, render_login_gate
 from streamlit_folium import st_folium
 
 st.set_page_config(
@@ -303,6 +306,7 @@ bascule automatique sur `total` pour les types uniquement reportés à ce niveau
 | **% Femmes* / % Enfants*** | Parts calculées uniquement sur les populations ventilées par sexe / âge (souvent REF/ASY) |
 | **Variation MoM** | Écart entre le mois de référence et le mois de comparaison |
 | **Enregistrement REF + ASY** | Basé sur le champ ActivityInfo `basis` : `registration` = enregistré individuellement ; autres bases (`estimate`, `census`, `pre-registration`, `survey`…) = non enregistré individuellement |
+| **Accès applicatif** | Comptes locaux sur invitation (admin) ; pas d'inscription publique ; changement de mot de passe par l'utilisateur |
 | **Hébergement (camp / hors camp)** | Part des REF+ASY selon le type d'hébergement reporté |
 | **Carte des zones de résidence** | Cascade géographique : Admin2 si renseigné, sinon Admin1, sinon centroïde pays |
 | **Projection 2036** | Illustration à partir d'hypothèses métier (croissance, choc conflit, retours) ; historique mensuel court |
@@ -369,6 +373,7 @@ automatically fall back to `total` for types only reported at that level
 | **% Female* / % Children*** | Shares computed only on populations with sex / age disaggregation (often REF/ASY) |
 | **MoM change** | Difference between the reference month and the comparison month |
 | **REF + ASY registration** | Based on the ActivityInfo `basis` field: `registration` = individually registered; other bases (`estimate`, `census`, `pre-registration`, `survey`…) = not individually registered |
+| **Application access** | Invitation-only local accounts (admin-created); no public sign-up; users can change their password |
 | **Accommodation (camp / out of camp)** | REF+ASY share by reported accommodation type |
 | **Residence areas map** | Geographic cascade: Admin2 when reported, else Admin1, else country centroid |
 | **2036 projection** | Illustration from business assumptions (growth, conflict shock, returns); short monthly history |
@@ -403,9 +408,11 @@ def main() -> None:
     _inject_brand()
 
     lang = _language_selector()
+    auth_user = render_login_gate(lang)
 
     if LOGO_PATH.exists():
         st.sidebar.image(str(LOGO_PATH), width=160)
+    render_auth_sidebar(lang, auth_user)
     st.sidebar.markdown(f"**{t('filters', lang)}**")
 
     _render_header(lang)
@@ -1201,6 +1208,7 @@ def main() -> None:
 
     with tab_about:
         _about_content(lang)
+        render_admin_users_panel(lang, auth_user)
 
     st.sidebar.markdown("---")
     st.sidebar.caption(
