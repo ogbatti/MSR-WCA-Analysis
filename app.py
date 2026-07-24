@@ -1174,7 +1174,13 @@ def main() -> None:
         horizon = g4.slider(t("horizon", lang), 2027, 2036, 2036, 1)
 
         annual = annual_stock(filtered_all, pop_codes=fc_pops)
-        if annual.empty:
+        if not fc_pops:
+            st.warning(
+                "Sélectionnez au moins un type de population."
+                if lang == "fr"
+                else "Select at least one population type."
+            )
+        elif annual.empty:
             st.warning(
                 "Historique annuel insuffisant."
                 if lang == "fr"
@@ -1189,22 +1195,29 @@ def main() -> None:
                 conflict=conflict,
                 returns=returns,
             )
-            st.plotly_chart(forecast_lines(forecast, lang), width="stretch")
-
-            focus_code = fc_pops[0] if fc_pops else "REF"
-            narrative = build_forecast_narrative(
-                lang,
-                forecast[forecast["pop_code"] == focus_code],
-                focus_code,
-                horizon,
-            )
-            _narrative_box(narrative)
-            with st.expander(t("scenario_compare", lang)):
-                st.dataframe(
-                    forecast.sort_values(["pop_code", "scenario", "year"]),
-                    width="stretch",
-                    hide_index=True,
+            if forecast.empty or "scenario" not in forecast.columns:
+                st.warning(
+                    "Impossible de calculer la projection pour la sélection actuelle."
+                    if lang == "fr"
+                    else "Unable to compute the projection for the current selection."
                 )
+            else:
+                st.plotly_chart(forecast_lines(forecast, lang), width="stretch")
+
+                focus_code = fc_pops[0] if fc_pops else "REF"
+                narrative = build_forecast_narrative(
+                    lang,
+                    forecast[forecast["pop_code"] == focus_code],
+                    focus_code,
+                    horizon,
+                )
+                _narrative_box(narrative)
+                with st.expander(t("scenario_compare", lang)):
+                    st.dataframe(
+                        forecast.sort_values(["pop_code", "scenario", "year"]),
+                        width="stretch",
+                        hide_index=True,
+                    )
 
     with tab_about:
         _about_content(lang)

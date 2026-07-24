@@ -612,14 +612,29 @@ def corridor_map(flows: pd.DataFrame, lang: str) -> go.Figure:
 
 
 def forecast_lines(forecast: pd.DataFrame, lang: str) -> go.Figure:
-    d = forecast.copy()
     title = (
         "Illustrative scenario projection to 2036"
         if lang == "en"
         else "Projection illustrative de scénarios jusqu'en 2036"
     )
     y_lbl = _total_label(lang)
-    color_map = {k: SCENARIO_COLORS.get(k, BLUE_PRIMARY) for k in d["scenario"].unique()}
+    required = {"year", "total", "scenario"}
+    if (
+        forecast is None
+        or forecast.empty
+        or not required.issubset(set(forecast.columns))
+    ):
+        fig = go.Figure()
+        apply_unhcr_layout(fig, title=title)
+        fig.update_layout(height=460)
+        return fig
+
+    d = forecast.copy()
+    if "kind" not in d.columns:
+        d["kind"] = "forecast"
+    color_map = {
+        k: SCENARIO_COLORS.get(k, BLUE_PRIMARY) for k in d["scenario"].dropna().unique()
+    }
     fig = px.line(
         d,
         x="year",
