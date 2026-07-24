@@ -97,9 +97,19 @@ APP_CSS = """
 
   .stApp { background-color: #FFFFFF; color: var(--unhcr-text); }
 
-  /* Hide Streamlit chrome noise */
+  /* Hide Streamlit chrome (menu, Built with Streamlit, Fullscreen) */
   #MainMenu { visibility: hidden; }
-  footer { visibility: hidden; }
+  footer { visibility: hidden; display: none !important; }
+  header[data-testid="stHeader"] { background: transparent; }
+  [data-testid="stToolbar"] { display: none !important; }
+  [data-testid="stDecoration"] { display: none !important; }
+  [data-testid="stStatusWidget"] { display: none !important; }
+  [data-testid="stBaseButton-headerNoPadding"] { display: none !important; }
+  .viewerBadge_container__r5tak,
+  .viewerBadge_link__qRIym,
+  [class*="viewerBadge"] { display: none !important; }
+  a[href*="streamlit.io/cloud"],
+  a[href*="share.streamlit.io"] { display: none !important; }
 
   h1, h2, h3 { color: var(--unhcr-blue-dark) !important; font-weight: 700 !important; }
 
@@ -274,6 +284,11 @@ LOGIN_PAGE_CSS = """
   /* Clean login canvas */
   [data-testid="stSidebar"] { display: none !important; }
   [data-testid="stSidebarCollapsedControl"] { display: none !important; }
+  footer { visibility: hidden; display: none !important; }
+  [data-testid="stToolbar"] { display: none !important; }
+  [data-testid="stDecoration"] { display: none !important; }
+  [data-testid="stStatusWidget"] { display: none !important; }
+  [class*="viewerBadge"] { display: none !important; }
   .stApp {
     background:
       radial-gradient(1200px 500px at 10% -10%, #CDE3F1 0%, transparent 55%),
