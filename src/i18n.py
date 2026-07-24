@@ -174,6 +174,14 @@ STRINGS = {
         "fr": "Pour des raisons de sécurité, veuillez définir un nouveau mot de passe.",
         "en": "For security reasons, please set a new password.",
     },
+    "auth_must_change_title": {
+        "fr": "Nouveau mot de passe requis",
+        "en": "New password required",
+    },
+    "auth_login_footer": {
+        "fr": "Accès réservé · comptes créés par un administrateur",
+        "en": "Restricted access · accounts created by an administrator",
+    },
     "auth_must_change_flag": {
         "fr": "Exiger un changement à la première connexion",
         "en": "Require change on first sign-in",

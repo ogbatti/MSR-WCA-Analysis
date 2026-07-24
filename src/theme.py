@@ -269,6 +269,113 @@ APP_CSS = """
 </style>
 """
 
+LOGIN_PAGE_CSS = """
+<style>
+  /* Clean login canvas */
+  [data-testid="stSidebar"] { display: none !important; }
+  [data-testid="stSidebarCollapsedControl"] { display: none !important; }
+  .stApp {
+    background:
+      radial-gradient(1200px 500px at 10% -10%, #CDE3F1 0%, transparent 55%),
+      radial-gradient(900px 420px at 100% 0%, #E8F4FB 0%, transparent 50%),
+      linear-gradient(180deg, #F7FBFE 0%, #FFFFFF 42%, #F7FBFE 100%);
+  }
+  .block-container {
+    padding: 1.75rem 1.6rem 1.4rem 1.6rem !important;
+    max-width: 460px !important;
+    margin-top: 4vh !important;
+    background: rgba(255,255,255,0.97);
+    border: 1px solid #D6E8F4;
+    border-top: 4px solid #0072BC;
+    border-radius: 10px;
+    box-shadow: 0 12px 32px rgba(11, 55, 84, 0.10);
+  }
+  .login-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    margin-bottom: 1.15rem;
+  }
+  .login-brand img {
+    height: 48px;
+    width: auto;
+  }
+  .login-brand .kicker {
+    margin: 0;
+    color: #0072BC;
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    line-height: 1.35;
+  }
+  .login-brand h1 {
+    margin: 0.2rem 0 0 0 !important;
+    padding: 0 !important;
+    font-size: 1.22rem !important;
+    line-height: 1.25 !important;
+    color: #0B3754 !important;
+  }
+  .login-title {
+    margin: 0 0 0.25rem 0;
+    color: #0B3754;
+    font-size: 1.05rem;
+    font-weight: 700;
+  }
+  .login-help {
+    margin: 0 0 1rem 0;
+    color: #737373;
+    font-size: 0.88rem;
+    line-height: 1.4;
+  }
+  .login-note {
+    background: #F7FBFE;
+    border-left: 3px solid #0072BC;
+    color: #05568B;
+    padding: 0.65rem 0.8rem;
+    border-radius: 0 6px 6px 0;
+    font-size: 0.82rem;
+    margin: 0 0 1rem 0;
+  }
+  .login-footer {
+    margin-top: 0.85rem;
+    color: #999999;
+    font-size: 0.75rem;
+    text-align: center;
+  }
+  div[data-testid="stForm"] {
+    border: none !important;
+    padding: 0 !important;
+    background: transparent !important;
+  }
+  div[data-testid="stForm"] [data-testid="stVerticalBlock"] {
+    gap: 0.65rem !important;
+  }
+  .stTextInput > div > div {
+    background: #F7FBFE !important;
+    border: 1px solid #CDE3F1 !important;
+    border-radius: 6px !important;
+  }
+  .stTextInput > div > div:focus-within {
+    border-color: #0072BC !important;
+    box-shadow: 0 0 0 2px rgba(0, 114, 188, 0.15) !important;
+  }
+  .stButton > button[kind="primary"],
+  .stFormSubmitButton > button {
+    background: #0072BC !important;
+    border: none !important;
+    border-radius: 6px !important;
+    font-weight: 700 !important;
+    width: 100% !important;
+    min-height: 2.55rem !important;
+  }
+  .stButton > button[kind="primary"]:hover,
+  .stFormSubmitButton > button:hover {
+    background: #05568B !important;
+  }
+</style>
+"""
+
 
 def apply_unhcr_layout(fig, *, title: str | None = None) -> None:
     """Apply shared UNHCR layout styling to a Plotly figure."""

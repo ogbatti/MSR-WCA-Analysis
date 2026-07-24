@@ -1,10 +1,25 @@
 """Streamlit UI for invitation-based authentication."""
 from __future__ import annotations
 
+import base64
+
 import streamlit as st
 
 from src import auth as auth_mod
+from src.config import ROOT
 from src.i18n import t
+from src.theme import LOGIN_PAGE_CSS
+
+_LOGO_PATH = ROOT / "assets" / "unhcr_logo.svg"
+
+
+def _logo_data_uri() -> str | None:
+    if not _LOGO_PATH.exists():
+        return None
+    raw = _LOGO_PATH.read_bytes()
+    b64 = base64.b64encode(raw).decode("ascii")
+    mime = "image/svg+xml" if _LOGO_PATH.suffix.lower() == ".svg" else "image/png"
+    return f"data:{mime};base64,{b64}"
 
 
 def _err_label(code: str | None, lang: str) -> str:
@@ -22,6 +37,20 @@ def _err_label(code: str | None, lang: str) -> str:
     return mapping.get(code, code)
 
 
+def _login_lang_bar(lang: str) -> str:
+    """Compact FR/EN switch on the login canvas (sidebar is hidden)."""
+    c1, c2, c3 = st.columns([1, 1, 4])
+    with c1:
+        if st.button("FR", key="login_lang_fr", use_container_width=True):
+            st.session_state.lang = "fr"
+            st.rerun()
+    with c2:
+        if st.button("EN", key="login_lang_en", use_container_width=True):
+            st.session_state.lang = "en"
+            st.rerun()
+    return st.session_state.get("lang", lang)
+
+
 def render_login_gate(lang: str) -> auth_mod.AuthUser | None:
     """
     Show login until authenticated. Returns the current user, or None if auth disabled.
@@ -35,57 +64,103 @@ def render_login_gate(lang: str) -> auth_mod.AuthUser | None:
     user = auth_mod.current_user(st.session_state)
     if user and user.active:
         if user.must_change_password:
-            _render_force_change_password(lang, user)
+            _render_auth_card(lang, mode="force_password", user=user)
             st.stop()
         return user
 
-    _render_login_page(lang)
+    _render_auth_card(lang, mode="login")
     st.stop()
     return None  # pragma: no cover
 
 
-def _render_login_page(lang: str) -> None:
-    st.markdown(f"### {t('auth_login_title', lang)}")
-    st.caption(t("auth_login_help", lang))
+def _render_auth_card(
+    lang: str,
+    *,
+    mode: str,
+    user: auth_mod.AuthUser | None = None,
+) -> None:
+    st.markdown(LOGIN_PAGE_CSS, unsafe_allow_html=True)
+    lang = _login_lang_bar(lang)
 
-    status = auth_mod.auth_status_message()
-    if status == "need_bootstrap":
-        st.warning(_err_label("need_bootstrap", lang))
+    logo = _logo_data_uri()
+    img = f'<img src="{logo}" alt="UNHCR" />' if logo else ""
+    kicker = "REGIONAL BUREAU FOR WEST AND CENTRAL AFRICA - DIMA"
+    title = t("app_title", lang)
+    heading = (
+        t("auth_must_change_title", lang)
+        if mode == "force_password"
+        else t("auth_login_title", lang)
+    )
+    help_txt = (
+        t("auth_must_change", lang)
+        if mode == "force_password"
+        else t("auth_login_help", lang)
+    )
 
-    with st.form("auth_login_form"):
-        email = st.text_input(t("auth_email", lang))
-        password = st.text_input(t("auth_password", lang), type="password")
-        submitted = st.form_submit_button(t("auth_sign_in", lang), type="primary")
+    st.markdown(
+        f"""
+        <div class="login-brand">
+          {img}
+          <div>
+            <p class="kicker">{kicker}</p>
+            <h1>{title}</h1>
+          </div>
+        </div>
+        <p class="login-title">{heading}</p>
+        <p class="login-help">{help_txt}</p>
+        """,
+        unsafe_allow_html=True,
+    )
 
-    if submitted:
-        user = auth_mod.authenticate(email, password)
-        if user is None:
-            st.error(t("auth_err_credentials", lang))
-        else:
-            auth_mod.login_user(st.session_state, user)
-            st.rerun()
+    if mode == "login":
+        status = auth_mod.auth_status_message()
+        if status == "need_bootstrap":
+            st.markdown(
+                f'<div class="login-note">{_err_label("need_bootstrap", lang)}</div>',
+                unsafe_allow_html=True,
+            )
+        with st.form("auth_login_form"):
+            email = st.text_input(t("auth_email", lang), placeholder="name@unhcr.org")
+            password = st.text_input(
+                t("auth_password", lang), type="password", placeholder="••••••••"
+            )
+            submitted = st.form_submit_button(
+                t("auth_sign_in", lang), type="primary", use_container_width=True
+            )
+        if submitted:
+            found = auth_mod.authenticate(email, password)
+            if found is None:
+                st.error(t("auth_err_credentials", lang))
+            else:
+                auth_mod.login_user(st.session_state, found)
+                st.rerun()
+    else:
+        assert user is not None
+        with st.form("auth_force_pwd"):
+            current = st.text_input(t("auth_password_current", lang), type="password")
+            new1 = st.text_input(t("auth_password_new", lang), type="password")
+            new2 = st.text_input(t("auth_password_confirm", lang), type="password")
+            ok = st.form_submit_button(
+                t("auth_password_save", lang), type="primary", use_container_width=True
+            )
+        if ok:
+            if new1 != new2:
+                st.error(t("auth_err_pwd_mismatch", lang))
+            else:
+                err = auth_mod.change_password(user.email, current, new1)
+                if err:
+                    st.error(_err_label(err, lang))
+                else:
+                    refreshed = auth_mod.get_user(user.email)
+                    if refreshed:
+                        auth_mod.login_user(st.session_state, refreshed)
+                    st.success(t("auth_password_updated", lang))
+                    st.rerun()
 
-
-def _render_force_change_password(lang: str, user: auth_mod.AuthUser) -> None:
-    st.warning(t("auth_must_change", lang))
-    with st.form("auth_force_pwd"):
-        current = st.text_input(t("auth_password_current", lang), type="password")
-        new1 = st.text_input(t("auth_password_new", lang), type="password")
-        new2 = st.text_input(t("auth_password_confirm", lang), type="password")
-        ok = st.form_submit_button(t("auth_password_save", lang), type="primary")
-    if ok:
-        if new1 != new2:
-            st.error(t("auth_err_pwd_mismatch", lang))
-            return
-        err = auth_mod.change_password(user.email, current, new1)
-        if err:
-            st.error(_err_label(err, lang))
-            return
-        refreshed = auth_mod.get_user(user.email)
-        if refreshed:
-            auth_mod.login_user(st.session_state, refreshed)
-        st.success(t("auth_password_updated", lang))
-        st.rerun()
+    st.markdown(
+        f'<p class="login-footer">{t("auth_login_footer", lang)}</p>',
+        unsafe_allow_html=True,
+    )
 
 
 def render_auth_sidebar(lang: str, user: auth_mod.AuthUser | None) -> None:
