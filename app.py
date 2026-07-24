@@ -282,62 +282,72 @@ de personnes relevant du mandat du HCR (réfugiés, demandeurs d'asile, PDI,
 apatrides, etc.), ses tendances, sa géographie et des scénarios de projection.
 
 **Fonctionnalités principales**
-- Indicateurs clés séparés (total, REF+ASY, PDI, apatrides) et parts démographiques sur populations ventilées
+- Indicateurs clés (total, REF+ASY, PDI, apatrides) et parts démographiques sur populations ventilées
 - Qualité des données, export CSV, tendances MoM/YoY et flux de retours (RET/RDP)
-- Cartes WCA, corridors REF/ASY, hotspots Admin1 et fiche pays
-- Hébergement (camp / hors camp) et Personnes ayant des besoins spécifiques (PSN)
-- Projection illustrative jusqu'en 2036 (hypothèses métier, historique court)
+- **Évolution sur 10 ans** (ASR Data Finder + mois de référence ActivityInfo)
+- Cartes WCA (composition, résidence), corridors REF/ASY, hotspots Admin1/2 et fiche pays
+- Hébergement (camp / hors camp), enregistrement REF+ASY et Personnes ayant des besoins spécifiques (PSN)
+- Rapports PDF prêts à partager
+- Projection illustrative jusqu'en 2036 (hypothèses métier)
+- Accès sur invitation (comptes locaux administrés)
 
 ### Sources de données
 
 | Source | Contenu |
 |--------|---------|
-| **ActivityInfo** — base *WCA DIMA Statistics & Analysis* | Formulaire `population` : effectifs mensuels par type, sexe/âge, origine × asile, Admin1/2 |
-| Référentiels ActivityInfo | Pays WCA, types de population, géolocalisation |
+| **ActivityInfo** — base *WCA DIMA Statistics & Analysis* | Formulaire `population` : effectifs mensuels par type, sexe/âge, origine × asile, Admin1/2, hébergement, base d'enregistrement (`basis`) |
+| **ActivityInfo** — PSN | Formulaires besoins spécifiques (`psn` / `total_psn`) |
+| Référentiels ActivityInfo | Pays WCA (ISO3 / HCR3), types de population, géolocalisation |
+| **Refugee Data Finder (ASR)** — API publique HCR | Stocks annuels de fin d'année (REF, ASY, IDP, STA, retours, OOC) pour le graphique d'évolution sur 10 ans |
 | Enrichissement local | Centroïdes des origines hors WCA les plus importantes (Soudan, Rwanda, etc.) pour les corridors |
 
-**Méthode d'agrégation :** les totaux somment la colonne ActivityInfo `total`
-telle quelle, **sans filtrer** sur `aggregation_type` (`detailed`, `total`,
-`male_female`, …). Toutes les lignes publiées pour les types / pays / mois
-sélectionnés sont incluses.
+**Site :** [dimawca.app](https://dimawca.app) · API ASR : [api.unhcr.org/population](https://api.unhcr.org/docs/refugee-statistics.html)
 
 ### Méthodologie & indicateurs
 
-| Indicateur | Définition |
-|------------|------------|
-| **Population totale** | Somme des effectifs des types sélectionnés pour le mois de référence |
+| Indicateur / règle | Définition |
+|--------------------|------------|
+| **Types par défaut** | Tous les types de population **sauf NOC** (hors mandat) |
+| **Population totale** | Somme de la colonne ActivityInfo `total` pour les types / pays / mois sélectionnés, **sans filtrer** sur `aggregation_type` |
 | **REF + ASY** | Réfugiés et demandeurs d'asile uniquement |
-| **% Femmes* / % Enfants*** | Parts calculées uniquement sur les populations ventilées par sexe / âge (souvent REF/ASY) |
+| **% Femmes* / % Enfants*** | Calculés uniquement sur les populations ventilées par sexe / âge (souvent REF/ASY) |
 | **Variation MoM** | Écart entre le mois de référence et le mois de comparaison |
-| **Enregistrement REF + ASY** | Basé sur le champ ActivityInfo `basis` : `registration` = enregistré individuellement ; autres bases (`estimate`, `census`, `pre-registration`, `survey`…) = non enregistré individuellement |
-| **Accès applicatif** | Comptes locaux sur invitation (admin) ; pas d'inscription publique ; changement de mot de passe par l'utilisateur |
+| **Enregistrement REF + ASY** | Champ `basis` : `registration` = enregistré individuellement ; autres bases (`estimate`, `census`, `pre-registration`, `survey`…) = non enregistré individuellement |
 | **Hébergement (camp / hors camp)** | Part des REF+ASY selon le type d'hébergement reporté |
-| **Carte des zones de résidence** | Cascade géographique : Admin2 si renseigné, sinon Admin1, sinon centroïde pays |
-| **Projection 2036** | Illustration à partir d'hypothèses métier (croissance, choc conflit, retours) ; historique mensuel court |
-| **Évolution sur 10 ans** | Années passées : stocks de fin d'année du Refugee Data Finder (ASR). Année en cours : données ActivityInfo du mois de référence. Les retours (RET/RDP) ASR sont des flux annuels remis à zéro chaque année |
+| **Carte des zones de résidence** | Cascade : Admin2 si renseigné, sinon Admin1, sinon centroïde pays |
+| **Évolution sur 10 ans** | Années passées : stocks de fin d'année ASR (Refugee Data Finder). Année en cours : ActivityInfo du **mois de référence**. Fenêtre = année du mois de référence − 9 → année en cours. Les retours ASR (RET/RDP) sont des **flux annuels** remis à zéro chaque année (pas un stock cumulé) |
+| **Rupture de série ASR / MSR** | L'ASR est annuel et officiel ; le MSR est mensuel opérationnel. Les niveaux peuvent différer sur l'année en cours |
+| **Projection 2036** | Illustration à partir d'hypothèses (croissance, choc conflit, retours) ; ne constitue pas une prévision institutionnelle |
+| **Accès applicatif** | Comptes locaux sur invitation (admin) ; pas d'inscription publique ; changement de mot de passe par l'utilisateur |
 
 ### Glossaire
 
 | Acronyme | Signification |
 |----------|----------------|
 | **MSR** | *Monthly Statistical Report* — Rapport statistique mensuel |
+| **ASR** | *Annual Statistical Report* — Rapport statistique annuel (données du Refugee Data Finder) |
+| **Data Finder** | Portail / API publique de statistiques de population du HCR |
 | **UNHCR / HCR** | Haut-Commissariat des Nations Unies pour les réfugiés |
 | **WCA / RBWCA** | *West and Central Africa* / Bureau régional Afrique de l'Ouest et du Centre |
 | **DIMA** | *Data, Identity Management and Analysis* (données, gestion d'identité et analyse) |
+| **ActivityInfo** | Plateforme de collecte et de reporting des données opérationnelles |
 | **REF** | Réfugiés |
 | **ASY** | Demandeurs d'asile |
 | **IDP / PDI** | Personnes déplacées internes |
 | **STA** | Apatrides |
-| **RET** | Réfugiés rapatriés |
-| **RDP** | PDI de retour |
+| **RET** | Réfugiés rapatriés (flux de retour) |
+| **RDP** | PDI de retour (flux de retour) |
 | **OOC** | Autres personnes relevant du mandat (*Others of concern*) |
-| **NOC** | Hors mandat (*Not of concern*) |
+| **NOC** | Hors mandat (*Not of concern*) — exclu par défaut des totaux |
+| **basis** | Base de l'effectif dans ActivityInfo (enregistrement individuel, estimation, recensement, pré-enregistrement, enquête…) |
+| **aggregation_type** | Niveau d'agrégation ActivityInfo (`detailed`, `total`, `male_female`, …) |
 | **MoM** | Variation d'un mois sur l'autre (*Month-over-Month*) |
 | **YoY** | Variation d'une année sur l'autre (*Year-over-Year*) |
 | **Admin1 / Admin2** | Subdivisions administratives (région / département, selon le pays) |
 | **ISO3** | Code pays à 3 lettres (norme ISO 3166-1 alpha-3) |
 | **HCR3** | Code pays interne HCR (ex. CHD, NIG, BKF) |
 | **PSN** | *Persons with Specific Needs* — Personnes ayant des besoins spécifiques |
+| **SMTP** | Protocole d'envoi d'e-mails (notifications de compte, si activé) |
             """
         )
     else:
@@ -351,61 +361,72 @@ for the **West and Central Africa (WCA / RBWCA)** region. It explores the
 stateless persons, etc.), trends, geography and scenario projections.
 
 **Main features**
-- Split KPIs (total, REF+ASY, IDPs, stateless) and demographic shares on disaggregated populations only
+- Split KPIs (total, REF+ASY, IDPs, stateless) and demographic shares on disaggregated populations
 - Data quality, CSV export, MoM/YoY trends and returnee flows (RET/RDP)
-- WCA maps, REF/ASY corridors, Admin1 hotspots and country profile
-- Accommodation (camp / out-of-camp) and Persons with Specific Needs (PSN)
-- Illustrative projection to 2036 (business assumptions, short history)
+- **10-year trends** (ASR Data Finder + ActivityInfo reference month)
+- WCA maps (composition, residence), REF/ASY corridors, Admin1/2 hotspots and country profile
+- Accommodation (camp / out-of-camp), REF+ASY registration and Persons with Specific Needs (PSN)
+- Ready-to-share PDF reports
+- Illustrative projection to 2036 (business assumptions)
+- Invitation-only access (admin-managed local accounts)
 
 ### Data sources
 
 | Source | Content |
 |--------|---------|
-| **ActivityInfo** — *WCA DIMA Statistics & Analysis* | `population` form: monthly figures by type, sex/age, origin × asylum, Admin1/2 |
-| ActivityInfo references | WCA countries, population types, geolocation |
+| **ActivityInfo** — *WCA DIMA Statistics & Analysis* | `population` form: monthly figures by type, sex/age, origin × asylum, Admin1/2, accommodation, registration `basis` |
+| **ActivityInfo** — PSN | Specific needs forms (`psn` / `total_psn`) |
+| ActivityInfo references | WCA countries (ISO3 / HCR3), population types, geolocation |
+| **Refugee Data Finder (ASR)** — UNHCR public API | End-of-year annual stocks (REF, ASY, IDP, STA, returns, OOC) for the 10-year trends chart |
 | Local enrichment | Centroids for major non-WCA origins (Sudan, Rwanda, etc.) for corridor maps |
 
-**Aggregation method:** totals sum the ActivityInfo `total` column as published,
-**without filtering** on `aggregation_type` (`detailed`, `total`, `male_female`,
-…). All published rows for the selected types / countries / month are included.
+**Site:** [dimawca.app](https://dimawca.app) · ASR API: [api.unhcr.org/population](https://api.unhcr.org/docs/refugee-statistics.html)
 
 ### Methodology & indicators
 
-| Indicator | Definition |
-|-----------|------------|
-| **Total population** | Sum of selected population types for the reference month |
+| Indicator / rule | Definition |
+|------------------|------------|
+| **Default population types** | All types **except NOC** (not of concern) |
+| **Total population** | Sum of the ActivityInfo `total` column for selected types / countries / month, **without filtering** on `aggregation_type` |
 | **REF + ASY** | Refugees and asylum-seekers only |
-| **% Female* / % Children*** | Shares computed only on populations with sex / age disaggregation (often REF/ASY) |
+| **% Female* / % Children*** | Computed only on populations with sex / age disaggregation (often REF/ASY) |
 | **MoM change** | Difference between the reference month and the comparison month |
-| **REF + ASY registration** | Based on the ActivityInfo `basis` field: `registration` = individually registered; other bases (`estimate`, `census`, `pre-registration`, `survey`…) = not individually registered |
-| **Application access** | Invitation-only local accounts (admin-created); no public sign-up; users can change their password |
+| **REF + ASY registration** | `basis` field: `registration` = individually registered; other bases (`estimate`, `census`, `pre-registration`, `survey`…) = not individually registered |
 | **Accommodation (camp / out of camp)** | REF+ASY share by reported accommodation type |
-| **Residence areas map** | Geographic cascade: Admin2 when reported, else Admin1, else country centroid |
-| **2036 projection** | Illustration from business assumptions (growth, conflict shock, returns); short monthly history |
-| **10-year trends** | Past years: Refugee Data Finder (ASR) end-of-year stocks. Current year: ActivityInfo data for the reference month. ASR returns (RET/RDP) are annual flows reset each year |
+| **Residence areas map** | Cascade: Admin2 when reported, else Admin1, else country centroid |
+| **10-year trends** | Past years: ASR (Refugee Data Finder) end-of-year stocks. Current year: ActivityInfo **reference month**. Window = reference-month year − 9 → current year. ASR returns (RET/RDP) are **annual flows** reset each year (not a cumulative stock) |
+| **ASR / MSR series break** | ASR is annual official statistics; MSR is monthly operational data. Levels may differ for the current year |
+| **2036 projection** | Illustration from assumptions (growth, conflict shock, returns); not an institutional forecast |
+| **Application access** | Invitation-only local accounts (admin-created); no public sign-up; users can change their password |
 
 ### Glossary
 
 | Acronym | Meaning |
 |---------|---------|
 | **MSR** | Monthly Statistical Report |
+| **ASR** | Annual Statistical Report (Refugee Data Finder statistics) |
+| **Data Finder** | UNHCR public refugee statistics portal / API |
 | **UNHCR** | United Nations High Commissioner for Refugees |
 | **WCA / RBWCA** | West and Central Africa / Regional Bureau |
 | **DIMA** | Data, Identity Management and Analysis |
+| **ActivityInfo** | Operational data collection and reporting platform |
 | **REF** | Refugees |
 | **ASY** | Asylum-seekers |
 | **IDP** | Internally Displaced Persons |
 | **STA** | Stateless persons |
-| **RET** | Refugee returnees |
-| **RDP** | IDP returnees |
+| **RET** | Refugee returnees (return flow) |
+| **RDP** | IDP returnees (return flow) |
 | **OOC** | Others of concern |
-| **NOC** | Not of concern |
+| **NOC** | Not of concern — excluded from totals by default |
+| **basis** | ActivityInfo stock basis (individual registration, estimate, census, pre-registration, survey…) |
+| **aggregation_type** | ActivityInfo aggregation level (`detailed`, `total`, `male_female`, …) |
 | **MoM** | Month-over-Month change |
 | **YoY** | Year-over-Year change |
 | **Admin1 / Admin2** | Administrative subdivisions |
 | **ISO3** | ISO 3166-1 alpha-3 country code |
 | **HCR3** | UNHCR internal country code (e.g. CHD, NIG, BKF) |
 | **PSN** | Persons with Specific Needs |
+| **SMTP** | Email sending protocol (account notifications, when enabled) |
             """
         )
 
