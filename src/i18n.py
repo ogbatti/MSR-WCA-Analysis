@@ -196,10 +196,30 @@ STRINGS = {
         "fr": "Compte créé pour {email}.",
         "en": "Account created for {email}.",
     },
+    "auth_notify_send": {
+        "fr": "Envoyer une notification e-mail au nouvel utilisateur",
+        "en": "Send an email notification to the new user",
+    },
+    "auth_notify_ok": {
+        "fr": "Notification envoyée à {email}.",
+        "en": "Notification sent to {email}.",
+    },
+    "auth_notify_smtp_hint": {
+        "fr": "SMTP non configuré (secrets SMTP_*). Le compte pourra être créé, mais l’e-mail échouera.",
+        "en": "SMTP not configured (SMTP_* secrets). The account can be created, but email will fail.",
+    },
+    "auth_err_smtp_config": {
+        "fr": "Compte créé, mais e-mail non envoyé : configurez SMTP_HOST / SMTP_USER (et mot de passe) dans les secrets.",
+        "en": "Account created, but email was not sent: set SMTP_HOST / SMTP_USER (and password) in secrets.",
+    },
+    "auth_err_smtp_send": {
+        "fr": "Compte créé, mais l’envoi de l’e-mail a échoué. Vérifiez la configuration SMTP ou notifiez manuellement.",
+        "en": "Account created, but sending the email failed. Check SMTP settings or notify manually.",
+    },
     "auth_admin_title": {"fr": "Gestion des accès", "en": "Access management"},
     "auth_admin_help": {
-        "fr": "Créez des comptes sur invitation. Aucune inscription publique.",
-        "en": "Create invitation-only accounts. No public registration.",
+        "fr": "Créez des comptes sur invitation. Aucune inscription publique. Vous pouvez envoyer une notification e-mail à la création.",
+        "en": "Create invitation-only accounts. No public registration. You can send an email notification on creation.",
     },
     "auth_active": {"fr": "Actif", "en": "Active"},
     "auth_inactive": {"fr": "Inactif", "en": "Inactive"},

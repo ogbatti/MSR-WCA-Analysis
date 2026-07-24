@@ -9,6 +9,7 @@ import streamlit as st
 from src import auth as auth_mod
 from src.config import ROOT
 from src.i18n import t
+from src.mail import send_invite_notification, smtp_configured
 from src.theme import LOGIN_PAGE_CSS
 
 _LOGO_PATH = ROOT / "assets" / "unhcr_logo.svg"
@@ -34,6 +35,8 @@ def _err_label(code: str | None, lang: str) -> str:
         "password_spaces": t("auth_err_pwd_spaces", lang),
         "bad_current_password": t("auth_err_pwd_current", lang),
         "need_bootstrap": t("auth_need_bootstrap", lang),
+        "smtp_not_configured": t("auth_err_smtp_config", lang),
+        "smtp_send_failed": t("auth_err_smtp_send", lang),
     }
     return mapping.get(code, code)
 
@@ -215,6 +218,8 @@ def render_admin_users_panel(lang: str, user: auth_mod.AuthUser | None) -> None:
 
     st.markdown(f"### {t('auth_admin_title', lang)}")
     st.caption(t("auth_admin_help", lang))
+    if not smtp_configured():
+        st.info(t("auth_notify_smtp_hint", lang))
 
     with st.form("auth_invite_form"):
         c1, c2 = st.columns(2)
@@ -233,6 +238,7 @@ def render_admin_users_panel(lang: str, user: auth_mod.AuthUser | None) -> None:
                 ),
             )
         must_change = st.checkbox(t("auth_must_change_flag", lang), value=True)
+        send_notify = st.checkbox(t("auth_notify_send", lang), value=True)
         create = st.form_submit_button(t("auth_invite", lang), type="primary")
 
     if create:
@@ -247,6 +253,18 @@ def render_admin_users_panel(lang: str, user: auth_mod.AuthUser | None) -> None:
             st.error(_err_label(err, lang))
         elif created:
             st.success(t("auth_invite_ok", lang).format(email=created.email))
+            if send_notify:
+                mail_err = send_invite_notification(
+                    to_email=created.email,
+                    name=created.name,
+                    temp_password=temp_pwd,
+                    lang=lang,
+                    must_change=must_change,
+                )
+                if mail_err:
+                    st.warning(_err_label(mail_err, lang))
+                else:
+                    st.success(t("auth_notify_ok", lang).format(email=created.email))
 
     rows = auth_mod.list_users()
     if not rows:

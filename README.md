@@ -60,6 +60,15 @@ AUTH_ENABLED = "true"
 AUTH_ADMIN_EMAIL = "you@unhcr.org"
 AUTH_ADMIN_PASSWORD = "ChangeMe_now_8chars"
 AUTH_ADMIN_NAME = "DIMA Admin"
+APP_PUBLIC_URL = "https://dimawca.app"
+
+# Optional — email invite on account creation
+SMTP_HOST = "smtp.office365.com"
+SMTP_PORT = "587"
+SMTP_USER = "you@unhcr.org"
+SMTP_PASSWORD = "app-password-or-mailbox-password"
+SMTP_FROM = "DIMA WCA <you@unhcr.org>"
+SMTP_STARTTLS = "true"
 ```
 
 See `.streamlit/secrets.auth.example.toml` for the full auth example.
@@ -67,6 +76,7 @@ See `.streamlit/secrets.auth.example.toml` for the full auth example.
 ### Access control (invitation accounts)
 
 - No public registration: an **admin** creates users in **Informations → Gestion des accès**.
+- At creation, the admin can tick **send email notification** (URL, login, temporary password).
 - Users can **change their password** from the sidebar (**Mon compte**).
 - First admin is bootstrapped from `AUTH_ADMIN_*` secrets when `data/auth/users.json` is empty.
 - User store file: `data/auth/users.json` (gitignored; password hashes only).
