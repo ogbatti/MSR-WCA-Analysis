@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import base64
+import html
 
 import streamlit as st
 
@@ -166,13 +167,27 @@ def _render_auth_card(
 def render_auth_sidebar(lang: str, user: auth_mod.AuthUser | None) -> None:
     if user is None:
         return
+    role_lbl = (
+        t("auth_role_admin", lang)
+        if user.role == "admin"
+        else t("auth_role_user", lang)
+    )
+    st.sidebar.markdown(
+        f"""
+        <div style="margin:0.35rem 0 0.75rem 0;padding:0.55rem 0.7rem;
+                    background:#F7FBFE;border-left:3px solid #0072BC;border-radius:0 4px 4px 0;">
+          <div style="font-size:0.72rem;color:#737373;font-weight:600;text-transform:uppercase;
+                      letter-spacing:0.04em;">{t("auth_signed_in_as", lang)}</div>
+          <div style="font-size:0.98rem;font-weight:700;color:#0B3754;margin-top:0.15rem;">
+            {html.escape(user.name)}
+          </div>
+          <div style="font-size:0.78rem;color:#05568B;margin-top:0.1rem;">{html.escape(role_lbl)}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     with st.sidebar.expander(t("auth_account", lang), expanded=False):
-        st.caption(f"{user.name} · {user.email}")
-        st.caption(
-            t("auth_role_admin", lang)
-            if user.role == "admin"
-            else t("auth_role_user", lang)
-        )
+        st.caption(user.email)
         if st.button(t("auth_sign_out", lang), key="auth_logout"):
             auth_mod.logout_user(st.session_state)
             st.rerun()

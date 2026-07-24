@@ -8,7 +8,7 @@ STRINGS = {
     },
     "app_subtitle": {
         "fr": "Déplacement forcé & apatridie · Afrique de l'Ouest et du Centre",
-        "en": "Forced displacement & statelessness · West & Central Africa",
+        "en": "Forcibly displaced and stateless people in West & Central Africa",
     },
     "language": {"fr": "Langue", "en": "Language"},
     "filters": {"fr": "Filtres", "en": "Filters"},
@@ -154,6 +154,7 @@ STRINGS = {
     "auth_sign_in": {"fr": "Se connecter", "en": "Sign in"},
     "auth_sign_out": {"fr": "Se déconnecter", "en": "Sign out"},
     "auth_account": {"fr": "Mon compte", "en": "My account"},
+    "auth_signed_in_as": {"fr": "Connecté(e)", "en": "Signed in as"},
     "auth_name": {"fr": "Nom", "en": "Name"},
     "auth_role": {"fr": "Rôle", "en": "Role"},
     "auth_role_admin": {"fr": "Administrateur", "en": "Admin"},

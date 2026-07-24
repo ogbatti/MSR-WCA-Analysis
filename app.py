@@ -417,7 +417,10 @@ def main() -> None:
 
     _render_header(lang)
 
-    force = st.sidebar.button(t("refresh", lang))
+    can_refresh = auth_user is None or auth_user.role == "admin"
+    force = False
+    if can_refresh:
+        force = st.sidebar.button(t("refresh", lang))
     try:
         pop = load_population(force_refresh=force)
         countries = load_countries()
@@ -1224,10 +1227,11 @@ def main() -> None:
         render_admin_users_panel(lang, auth_user)
 
     st.sidebar.markdown("---")
-    st.sidebar.caption(
-        f"WCA: {len(countries)} pays · {len(base):,} lignes · "
-        f"{base['date'].min().date()} → {base['date'].max().date()}"
-    )
+    if auth_user is None or auth_user.role == "admin":
+        st.sidebar.caption(
+            f"WCA: {len(countries)} pays · {len(base):,} lignes · "
+            f"{base['date'].min().date()} → {base['date'].max().date()}"
+        )
     credit = "© UNHCR · Source: ActivityInfo — WCA DIMA Statistics & Analysis"
     st.markdown(f'<div class="footer-credit">{credit}</div>', unsafe_allow_html=True)
 
