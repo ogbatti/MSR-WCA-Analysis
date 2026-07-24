@@ -294,8 +294,11 @@ apatrides, etc.), ses tendances, sa géographie et des scénarios de projection.
 | Enrichissement local | Centroïdes des origines hors WCA les plus importantes (Soudan, Rwanda, etc.) pour les corridors |
 
 **Méthode d'agrégation :** priorité aux lignes `detailed` (admin / localité) ;
-bascule automatique sur `total` pour les types uniquement reportés à ce niveau
-(ex. PDI, apatrides), sans mélanger les niveaux d'agrégation au sein d'un même type.
+bascule automatique sur `total` / `male_female` pour les types uniquement reportés
+à ce niveau (par pays). Les stocks complémentaires publiés seulement en `total`
+avec une base non individuelle (`pre-registration`, `survey`, `estimate`, `census`
+— ex. arrivées soudanaises au Tchad) sont **ajoutés** au stock `detailed`, sans
+double comptage des lignes `registration` au niveau `total`.
 
 ### Méthodologie & indicateurs
 
@@ -360,9 +363,12 @@ stateless persons, etc.), trends, geography and scenario projections.
 | ActivityInfo references | WCA countries, population types, geolocation |
 | Local enrichment | Centroids for major non-WCA origins (Sudan, Rwanda, etc.) for corridor maps |
 
-**Aggregation method:** prefer `detailed` rows (admin / locality);
-automatically fall back to `total` for types only reported at that level
-(e.g. IDPs, stateless), without mixing aggregation levels within a type.
+**Aggregation method:** prefer `detailed` rows (admin / locality); fall back to
+`total` / `male_female` for types only reported at that level (per country).
+Complementary stocks published only as `total` with a non-individual basis
+(`pre-registration`, `survey`, `estimate`, `census` — e.g. Sudanese arrivals in
+Chad) are **added** to the `detailed` stock, without double-counting
+`registration` rows at the `total` level.
 
 ### Methodology & indicators
 
