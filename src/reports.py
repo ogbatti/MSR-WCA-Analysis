@@ -932,9 +932,10 @@ def build_methodology_pdf(*, lang: str, current: pd.DataFrame) -> bytes:
         )
         pdf.h2("Agrégation")
         pdf.p(
-            "Priorité aux lignes « detailed » (admin/localité). Bascule automatique sur "
-            "« total » pour les types uniquement reportés à ce niveau (ex. PDI, apatrides), "
-            "sans mélanger les niveaux d'agrégation au sein d'un même type."
+            "Les totaux somment la colonne ActivityInfo « total » telle quelle, "
+            "sans filtrer sur aggregation_type (detailed, total, male_female, …). "
+            "Toutes les lignes publiées pour les types / pays / mois sélectionnés "
+            "sont incluses."
         )
         pdf.h2("Indicateurs démographiques")
         pdf.p(
@@ -960,9 +961,9 @@ def build_methodology_pdf(*, lang: str, current: pd.DataFrame) -> bytes:
         )
         pdf.h2("Aggregation")
         pdf.p(
-            "Prefer “detailed” rows (admin/locality). Automatically fall back to “total” "
-            "for types only reported at that level (e.g. IDPs, stateless), without mixing "
-            "aggregation levels within a type."
+            "Totals sum the ActivityInfo “total” column as published, without filtering "
+            "on aggregation_type (detailed, total, male_female, …). All published rows "
+            "for the selected types / countries / month are included."
         )
         pdf.h2("Demographic indicators")
         pdf.p(

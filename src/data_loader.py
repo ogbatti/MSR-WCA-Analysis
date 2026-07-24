@@ -242,59 +242,18 @@ def load_psn() -> pd.DataFrame:
     return df
 
 
-# Bases that represent complementary stocks (not a rollup of registration/detailed).
-# Kept at coarser aggregation when a preferred finer level also exists.
-_COMPLEMENTARY_BASES = frozenset(
-    {"pre-registration", "survey", "estimate", "census"}
-)
-
-
 def analytical_subset(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Prefer `detailed` rows when available for a population type in a given
-    asylum country; otherwise fall back to `total`, then `male_female`.
+    Stock rows used for dashboard totals and filters.
 
-    Aggregation is chosen per (pop_code, asylum country) so countries that
-    only publish coarser IDP/STA levels (e.g. Burkina Faso `male_female`)
-    are kept even when other countries publish `total` for the same type.
-
-    Additionally, when a finer preferred level exists, complementary stocks
-    published only at a coarser level (basis in pre-registration / survey /
-    estimate / census — e.g. Chad Sudanese arrivals) are still included so
-    they are not dropped from totals. Registration rows at coarser levels are
-    not added (would double-count detailed registration).
+    Totals sum the ``total`` column as published in ActivityInfo and do **not**
+    filter or prefer rows by ``aggregation_type`` (detailed / total /
+    male_female, …). All published rows for the selected types, countries and
+    month are included.
     """
-    if df.empty or "aggregation_type" not in df.columns:
+    if df.empty:
         return df.copy()
-
-    preference = ["detailed", "total", "male_female", "male_female_18_59"]
-    group_keys = ["pop_code"]
-    if "asylum_iso3" in df.columns:
-        group_keys.append("asylum_iso3")
-    elif "asylum_hcr3" in df.columns:
-        group_keys.append("asylum_hcr3")
-
-    has_basis = "basis" in df.columns
-    frames: list[pd.DataFrame] = []
-    for _, group in df.groupby(group_keys, dropna=False):
-        available = set(group["aggregation_type"].dropna().unique())
-        chosen = next((a for a in preference if a in available), None)
-        if chosen is None:
-            frames.append(group)
-            continue
-
-        keep = group[group["aggregation_type"] == chosen]
-        # Append complementary coarser-level stocks (not registration rollups).
-        if has_basis and chosen != "total":
-            basis = group["basis"].fillna("").astype(str).str.strip().str.lower()
-            complementary = group[
-                (group["aggregation_type"] != chosen)
-                & basis.isin(_COMPLEMENTARY_BASES)
-            ]
-            if not complementary.empty:
-                keep = pd.concat([keep, complementary], ignore_index=True)
-        frames.append(keep)
-    return pd.concat(frames, ignore_index=True) if frames else df.iloc[0:0].copy()
+    return df.copy()
 
 
 def filter_population(

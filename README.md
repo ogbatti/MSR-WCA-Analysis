@@ -93,7 +93,7 @@ The `.env` file is local-only and is not published to GitHub.
 | `total_psn` / `psn` | Persons with specific needs (not overall stock) |
 | `wca_countries_reference` | HCR3 ↔ ISO3 country mapping |
 
-Analytical totals prefer `aggregation_type = detailed` when available for a given country × population type (REF, ASY, …). If a country only publishes a coarser level for that type (e.g. Burkina Faso **IDP** as `male_female`, or **STA** as `total`), the dashboard falls back to that level for that country. Complementary stocks published only at a coarser level with basis in `pre-registration` / `survey` / `estimate` / `census` (e.g. Chad Sudanese arrivals) are **added** so they are not dropped when `detailed` registration also exists.
+Analytical totals sum the ActivityInfo `total` column and do **not** filter by `aggregation_type` (`detailed`, `total`, `male_female`, …). All published rows for the selected population types, countries and month are included.
 
 Population types: REF, ASY, IDP, STA, RET, RDP, OOC, NOC.
 
