@@ -91,11 +91,6 @@ def _render_auth_card(
         if mode == "force_password"
         else t("auth_login_title", lang)
     )
-    help_txt = (
-        t("auth_must_change", lang)
-        if mode == "force_password"
-        else t("auth_login_help", lang)
-    )
 
     st.markdown(
         f"""
@@ -107,10 +102,15 @@ def _render_auth_card(
           </div>
         </div>
         <p class="login-title">{heading}</p>
-        <p class="login-help">{help_txt}</p>
         """,
         unsafe_allow_html=True,
     )
+
+    if mode == "force_password":
+        st.markdown(
+            f'<p class="login-help">{t("auth_must_change", lang)}</p>',
+            unsafe_allow_html=True,
+        )
 
     if mode == "login":
         status = auth_mod.auth_status_message()

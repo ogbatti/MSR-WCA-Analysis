@@ -179,8 +179,8 @@ STRINGS = {
         "en": "New password required",
     },
     "auth_login_footer": {
-        "fr": "Accès réservé · comptes créés par un administrateur",
-        "en": "Restricted access · accounts created by an administrator",
+        "fr": "Accès réservé - veuillez contacter l'Administrateur",
+        "en": "Restricted access - please contact the Administrator",
     },
     "auth_must_change_flag": {
         "fr": "Exiger un changement à la première connexion",
