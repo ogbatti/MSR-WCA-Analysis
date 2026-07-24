@@ -27,7 +27,6 @@ from src.theme import (
     GREY_03,
     RED_PRIMARY,
     SCENARIO_COLORS,
-    WHITE,
     YELLOW_PRIMARY,
     apply_unhcr_layout,
     pop_color,
@@ -273,114 +272,35 @@ def monthly_trend_line(monthly: pd.DataFrame, lang: str) -> go.Figure:
     return fig
 
 
-def population_trends_area_slider(monthly: pd.DataFrame, lang: str) -> go.Figure:
-    """
-    Single-series monthly population area chart with an x-axis range slider
-    for month-by-month navigation (similar to a date slicer).
-    Expects monthly_stock rows: date / year_month, pop_code, total.
-    """
-    title = "Population trends" if lang == "en" else "Évolution de la population"
-    if monthly is None or monthly.empty:
-        fig = go.Figure()
-        apply_unhcr_layout(fig, title=title)
-        return fig
-
-    d = monthly.copy()
-    d["total"] = pd.to_numeric(d["total"], errors="coerce").fillna(0.0)
-    if "date" in d.columns:
-        d["date"] = pd.to_datetime(d["date"], errors="coerce")
-    elif "year_month" in d.columns:
-        d["date"] = pd.to_datetime(d["year_month"].astype(str) + "-01", errors="coerce")
-    else:
-        fig = go.Figure()
-        apply_unhcr_layout(fig, title=title)
-        return fig
-
-    series = (
-        d.dropna(subset=["date"])
-        .groupby("date", as_index=False)["total"]
-        .sum()
-        .sort_values("date")
-    )
-    if series.empty:
-        fig = go.Figure()
-        apply_unhcr_layout(fig, title=title)
-        return fig
-
-    # Prefer month-end labels like the reference viz
-    series["label"] = series["date"].dt.to_period("M").dt.to_timestamp("M")
-    texts = [f"{v:,.0f}" for v in series["total"]]
-
-    fig = go.Figure(
-        go.Scatter(
-            x=series["label"],
-            y=series["total"],
-            mode="lines+markers+text",
-            fill="tozeroy",
-            line=dict(color=BLUE_PRIMARY, width=2.5),
-            marker=dict(size=8, color=BLUE_PRIMARY, line=dict(width=1, color=WHITE)),
-            fillcolor="rgba(0, 114, 188, 0.18)",
-            text=texts,
-            textposition="top center",
-            textfont=dict(size=11, color=GREY_03),
-            hovertemplate=(
-                "<b>%{x|%b %Y}</b><br>"
-                + ("Total: " if lang == "en" else "Total : ")
-                + "%{y:,.0f}<extra></extra>"
-            ),
-            name=_total_label(lang),
-        )
-    )
-    apply_unhcr_layout(fig, title=title)
-    n = len(series)
-    # Default window: last ~18 months when history is long
-    if n >= 18:
-        x_range = [series["label"].iloc[-18], series["label"].iloc[-1]]
-    else:
-        x_range = [series["label"].iloc[0], series["label"].iloc[-1]]
-
-    fig.update_layout(
-        height=460,
-        showlegend=False,
-        margin=dict(t=60, b=80),
-        yaxis=dict(title=_total_label(lang), separatethousands=True, rangemode="tozero"),
-        xaxis=dict(
-            title="",
-            range=x_range,
-            rangeslider=dict(visible=True, thickness=0.12),
-            rangeselector=dict(
-                buttons=[
-                    dict(count=6, label="6M", step="month", stepmode="backward"),
-                    dict(count=12, label="1Y", step="month", stepmode="backward"),
-                    dict(count=24, label="2Y", step="month", stepmode="backward"),
-                    dict(
-                        label="All" if lang == "en" else "Tout",
-                        step="all",
-                    ),
-                ],
-                bgcolor="#F7FBFE",
-                activecolor=BLUE_02,
-                font=dict(size=11),
-                x=0,
-                y=1.12,
-            ),
-            tickformat="%b %Y",
-            dtick="M1",
-            tickangle=-35,
-        ),
-    )
-    return fig
+# Stack order + colors aligned with UNHCR Data Finder “Population trends” chart
+_ASR_STACK_ORDER = ["ASY", "IDP", "OOC", "RET", "RDP", "REF", "STA", "NOC"]
+_ASR_STACK_COLORS = {
+    "ASY": "#8FC1E1",  # light blue — asylum-seekers
+    "IDP": "#00A99D",  # teal — IDPs
+    "OOC": "#000000",  # black — others of concern
+    "RET": "#A7C4D8",  # grey-blue — refugee returns
+    "RDP": "#E8919C",  # pink — IDP returns
+    "REF": "#0072BC",  # UNHCR blue — refugees
+    "STA": "#F5C242",  # gold — stateless
+    "NOC": "#BFBFBF",
+}
 
 
-def population_trends_stacked_bar(df: pd.DataFrame, lang: str) -> go.Figure:
+def population_trends_stacked_bar(
+    df: pd.DataFrame,
+    lang: str,
+    *,
+    years: list[int] | None = None,
+) -> go.Figure:
     """
     Stacked annual population bars (ASR history + current reference month).
     Expects columns: year, pop_code, total [, source].
+    ``years`` forces the x-axis window (e.g. 10-year span).
     """
     title = (
-        "Population trends (ASR + reference month)"
+        "10-year population trends"
         if lang == "en"
-        else "Évolution de la population (ASR + mois de référence)"
+        else "Évolution de la population sur 10 ans"
     )
     if df is None or df.empty:
         fig = go.Figure()
@@ -389,25 +309,30 @@ def population_trends_stacked_bar(df: pd.DataFrame, lang: str) -> go.Figure:
 
     d = df.copy()
     d["total"] = pd.to_numeric(d["total"], errors="coerce").fillna(0.0)
+    d["year"] = d["year"].astype(int)
     d = d[d["total"] > 0]
+    if years:
+        d = d[d["year"].isin(years)]
     if d.empty:
         fig = go.Figure()
         apply_unhcr_layout(fig, title=title)
         return fig
 
-    order = [c for c in ["ASY", "IDP", "OOC", "RET", "RDP", "REF", "STA", "NOC"] if c in set(d["pop_code"])]
+    order = [c for c in _ASR_STACK_ORDER if c in set(d["pop_code"])]
     extra = [c for c in sorted(d["pop_code"].unique()) if c not in order]
     order = order + extra
 
     d["pop"] = d["pop_code"].map(lambda c: _pop_name(c, lang))
-    d["year"] = d["year"].astype(int)
-    # Stable category order for stacking
     pop_labels = [_pop_name(c, lang) for c in order]
     d["pop"] = pd.Categorical(d["pop"], categories=pop_labels, ordered=True)
     d = d.sort_values(["year", "pop"])
 
-    color_map = {_pop_name(code, lang): pop_color(code) for code in order}
+    color_map = {
+        _pop_name(code, lang): _ASR_STACK_COLORS.get(code, pop_color(code))
+        for code in order
+    }
     y_lbl = _total_label(lang)
+    year_axis = years if years else sorted(d["year"].unique())
 
     fig = px.bar(
         d,
@@ -415,12 +340,11 @@ def population_trends_stacked_bar(df: pd.DataFrame, lang: str) -> go.Figure:
         y="total",
         color="pop",
         color_discrete_map=color_map,
-        category_orders={"pop": pop_labels, "year": sorted(d["year"].unique())},
+        category_orders={"pop": pop_labels, "year": year_axis},
         labels={"year": "Year" if lang == "en" else "Année", "total": y_lbl, "pop": ""},
         title=title,
         text="total",
     )
-    # Show labels only for larger slices to avoid clutter
     fig.update_traces(
         texttemplate="%{y:.2s}",
         textposition="inside",
@@ -428,7 +352,6 @@ def population_trends_stacked_bar(df: pd.DataFrame, lang: str) -> go.Figure:
         textfont_size=11,
         cliponaxis=False,
     )
-    # Hide tiny text
     for tr in fig.data:
         ys = list(tr.y) if tr.y is not None else []
         texts = []
@@ -447,7 +370,7 @@ def population_trends_stacked_bar(df: pd.DataFrame, lang: str) -> go.Figure:
         barmode="stack",
         legend_title_text="",
         legend=dict(orientation="h", yanchor="bottom", y=-0.22, x=0),
-        xaxis=dict(type="category", dtick=1),
+        xaxis=dict(type="category", categoryorder="array", categoryarray=year_axis, dtick=1),
         yaxis=dict(separatethousands=True),
         margin=dict(b=90),
     )
@@ -459,12 +382,27 @@ def mom_yoy_bars(trend: pd.DataFrame, lang: str) -> go.Figure:
     Clearer alternative to MoM/YoY % bars: absolute month-to-month change
     (people gained/lost), with hover showing MoM % and YoY % when available.
     """
-    d = trend.dropna(subset=["mom_abs"]).copy()
-    title = (
-        "Monthly change in total population (people)"
-        if lang == "en"
-        else "Variation mensuelle de la population totale (personnes)"
-    )
+    from src.reference_data import format_month_label
+
+    d = trend.dropna(subset=["mom_abs"]).copy() if trend is not None else pd.DataFrame()
+    start_lbl = end_lbl = ""
+    if not d.empty and "year_month" in d.columns:
+        ym = sorted(d["year_month"].astype(str).unique())
+        if ym:
+            start_lbl = format_month_label(ym[0], lang)
+            end_lbl = format_month_label(ym[-1], lang)
+    if start_lbl and end_lbl:
+        title = (
+            f"Monthly population change from {start_lbl} to {end_lbl}"
+            if lang == "en"
+            else f"Variation mensuelle de la population de {start_lbl} à {end_lbl}"
+        )
+    else:
+        title = (
+            "Monthly population change"
+            if lang == "en"
+            else "Variation mensuelle de la population"
+        )
     if d.empty:
         fig = go.Figure()
         apply_unhcr_layout(fig, title=title)
