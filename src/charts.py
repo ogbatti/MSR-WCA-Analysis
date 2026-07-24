@@ -27,6 +27,7 @@ from src.theme import (
     GREY_03,
     RED_PRIMARY,
     SCENARIO_COLORS,
+    WHITE,
     YELLOW_PRIMARY,
     apply_unhcr_layout,
     pop_color,
@@ -269,6 +270,187 @@ def monthly_trend_line(monthly: pd.DataFrame, lang: str) -> go.Figure:
     )
     apply_unhcr_layout(fig)
     fig.update_layout(height=420, legend_title_text="")
+    return fig
+
+
+def population_trends_area_slider(monthly: pd.DataFrame, lang: str) -> go.Figure:
+    """
+    Single-series monthly population area chart with an x-axis range slider
+    for month-by-month navigation (similar to a date slicer).
+    Expects monthly_stock rows: date / year_month, pop_code, total.
+    """
+    title = "Population trends" if lang == "en" else "Évolution de la population"
+    if monthly is None or monthly.empty:
+        fig = go.Figure()
+        apply_unhcr_layout(fig, title=title)
+        return fig
+
+    d = monthly.copy()
+    d["total"] = pd.to_numeric(d["total"], errors="coerce").fillna(0.0)
+    if "date" in d.columns:
+        d["date"] = pd.to_datetime(d["date"], errors="coerce")
+    elif "year_month" in d.columns:
+        d["date"] = pd.to_datetime(d["year_month"].astype(str) + "-01", errors="coerce")
+    else:
+        fig = go.Figure()
+        apply_unhcr_layout(fig, title=title)
+        return fig
+
+    series = (
+        d.dropna(subset=["date"])
+        .groupby("date", as_index=False)["total"]
+        .sum()
+        .sort_values("date")
+    )
+    if series.empty:
+        fig = go.Figure()
+        apply_unhcr_layout(fig, title=title)
+        return fig
+
+    # Prefer month-end labels like the reference viz
+    series["label"] = series["date"].dt.to_period("M").dt.to_timestamp("M")
+    texts = [f"{v:,.0f}" for v in series["total"]]
+
+    fig = go.Figure(
+        go.Scatter(
+            x=series["label"],
+            y=series["total"],
+            mode="lines+markers+text",
+            fill="tozeroy",
+            line=dict(color=BLUE_PRIMARY, width=2.5),
+            marker=dict(size=8, color=BLUE_PRIMARY, line=dict(width=1, color=WHITE)),
+            fillcolor="rgba(0, 114, 188, 0.18)",
+            text=texts,
+            textposition="top center",
+            textfont=dict(size=11, color=GREY_03),
+            hovertemplate=(
+                "<b>%{x|%b %Y}</b><br>"
+                + ("Total: " if lang == "en" else "Total : ")
+                + "%{y:,.0f}<extra></extra>"
+            ),
+            name=_total_label(lang),
+        )
+    )
+    apply_unhcr_layout(fig, title=title)
+    n = len(series)
+    # Default window: last ~18 months when history is long
+    if n >= 18:
+        x_range = [series["label"].iloc[-18], series["label"].iloc[-1]]
+    else:
+        x_range = [series["label"].iloc[0], series["label"].iloc[-1]]
+
+    fig.update_layout(
+        height=460,
+        showlegend=False,
+        margin=dict(t=60, b=80),
+        yaxis=dict(title=_total_label(lang), separatethousands=True, rangemode="tozero"),
+        xaxis=dict(
+            title="",
+            range=x_range,
+            rangeslider=dict(visible=True, thickness=0.12),
+            rangeselector=dict(
+                buttons=[
+                    dict(count=6, label="6M", step="month", stepmode="backward"),
+                    dict(count=12, label="1Y", step="month", stepmode="backward"),
+                    dict(count=24, label="2Y", step="month", stepmode="backward"),
+                    dict(
+                        label="All" if lang == "en" else "Tout",
+                        step="all",
+                    ),
+                ],
+                bgcolor="#F7FBFE",
+                activecolor=BLUE_02,
+                font=dict(size=11),
+                x=0,
+                y=1.12,
+            ),
+            tickformat="%b %Y",
+            dtick="M1",
+            tickangle=-35,
+        ),
+    )
+    return fig
+
+
+def population_trends_stacked_bar(df: pd.DataFrame, lang: str) -> go.Figure:
+    """
+    Stacked annual population bars (ASR history + current reference month).
+    Expects columns: year, pop_code, total [, source].
+    """
+    title = (
+        "Population trends (ASR + reference month)"
+        if lang == "en"
+        else "Évolution de la population (ASR + mois de référence)"
+    )
+    if df is None or df.empty:
+        fig = go.Figure()
+        apply_unhcr_layout(fig, title=title)
+        return fig
+
+    d = df.copy()
+    d["total"] = pd.to_numeric(d["total"], errors="coerce").fillna(0.0)
+    d = d[d["total"] > 0]
+    if d.empty:
+        fig = go.Figure()
+        apply_unhcr_layout(fig, title=title)
+        return fig
+
+    order = [c for c in ["ASY", "IDP", "OOC", "RET", "RDP", "REF", "STA", "NOC"] if c in set(d["pop_code"])]
+    extra = [c for c in sorted(d["pop_code"].unique()) if c not in order]
+    order = order + extra
+
+    d["pop"] = d["pop_code"].map(lambda c: _pop_name(c, lang))
+    d["year"] = d["year"].astype(int)
+    # Stable category order for stacking
+    pop_labels = [_pop_name(c, lang) for c in order]
+    d["pop"] = pd.Categorical(d["pop"], categories=pop_labels, ordered=True)
+    d = d.sort_values(["year", "pop"])
+
+    color_map = {_pop_name(code, lang): pop_color(code) for code in order}
+    y_lbl = _total_label(lang)
+
+    fig = px.bar(
+        d,
+        x="year",
+        y="total",
+        color="pop",
+        color_discrete_map=color_map,
+        category_orders={"pop": pop_labels, "year": sorted(d["year"].unique())},
+        labels={"year": "Year" if lang == "en" else "Année", "total": y_lbl, "pop": ""},
+        title=title,
+        text="total",
+    )
+    # Show labels only for larger slices to avoid clutter
+    fig.update_traces(
+        texttemplate="%{y:.2s}",
+        textposition="inside",
+        insidetextanchor="middle",
+        textfont_size=11,
+        cliponaxis=False,
+    )
+    # Hide tiny text
+    for tr in fig.data:
+        ys = list(tr.y) if tr.y is not None else []
+        texts = []
+        for v in ys:
+            try:
+                num = float(v)
+            except (TypeError, ValueError):
+                texts.append("")
+                continue
+            texts.append(f"{num/1_000_000:.1f}M" if num >= 500_000 else "")
+        tr.text = texts
+
+    apply_unhcr_layout(fig)
+    fig.update_layout(
+        height=480,
+        barmode="stack",
+        legend_title_text="",
+        legend=dict(orientation="h", yanchor="bottom", y=-0.22, x=0),
+        xaxis=dict(type="category", dtick=1),
+        yaxis=dict(separatethousands=True),
+        margin=dict(b=90),
+    )
     return fig
 
 

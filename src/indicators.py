@@ -370,6 +370,58 @@ def annual_stock(df: pd.DataFrame, pop_codes: list[str] | None = None) -> pd.Dat
     return out
 
 
+def population_trends_hybrid(
+    asr_df: pd.DataFrame,
+    reference_month_df: pd.DataFrame,
+    *,
+    reference_year: int,
+    pop_codes: list[str] | None = None,
+    asylum_iso3: list[str] | None = None,
+) -> pd.DataFrame:
+    """
+    Annual stacked series: ASR Data Finder for years < reference_year,
+    ActivityInfo reference-month stocks for reference_year.
+
+    Returns columns: year, pop_code, total, source ('asr' | 'msr').
+    """
+    frames: list[pd.DataFrame] = []
+
+    if asr_df is not None and not asr_df.empty:
+        hist = asr_df.copy()
+        hist["year"] = hist["year"].astype(int)
+        hist = hist[hist["year"] < int(reference_year)]
+        if asylum_iso3:
+            hist = hist[hist["asylum_iso3"].isin(asylum_iso3)]
+        if pop_codes:
+            hist = hist[hist["pop_code"].isin(pop_codes)]
+        if not hist.empty:
+            g = (
+                hist.groupby(["year", "pop_code"], as_index=False)["total"]
+                .sum()
+            )
+            g["source"] = "asr"
+            frames.append(g)
+
+    if reference_month_df is not None and not reference_month_df.empty:
+        cur = reference_month_df.copy()
+        if asylum_iso3 and "asylum_iso3" in cur.columns:
+            cur = cur[cur["asylum_iso3"].isin(asylum_iso3)]
+        if pop_codes:
+            cur = cur[cur["pop_code"].isin(pop_codes)]
+        if not cur.empty and "pop_code" in cur.columns:
+            g = cur.groupby("pop_code", as_index=False)["total"].sum()
+            g["year"] = int(reference_year)
+            g["source"] = "msr"
+            frames.append(g[["year", "pop_code", "total", "source"]])
+
+    if not frames:
+        return pd.DataFrame(columns=["year", "pop_code", "total", "source"])
+    out = pd.concat(frames, ignore_index=True)
+    out["year"] = out["year"].astype(int)
+    out["total"] = pd.to_numeric(out["total"], errors="coerce").fillna(0.0)
+    return out.sort_values(["year", "pop_code"]).reset_index(drop=True)
+
+
 def age_sex_pyramid(df: pd.DataFrame) -> pd.DataFrame:
     """Build standard UNHCR age/sex pyramid (0-4, 5-11, 12-17, 18-59, 60+)."""
     from src.reference_data import AGE_BANDS

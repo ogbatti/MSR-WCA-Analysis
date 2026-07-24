@@ -110,6 +110,26 @@ STRINGS = {
         "fr": "Basé sur le champ ActivityInfo « basis » : registration = enregistré individuellement ; autres bases (estimate, census, pre-registration, survey…) = non enregistré individuellement.",
         "en": "Based on the ActivityInfo “basis” field: registration = individually registered; other bases (estimate, census, pre-registration, survey…) = not individually registered.",
     },
+    "asr_trends_title": {
+        "fr": "Évolution annuelle de la population (ASR + mois de référence)",
+        "en": "Annual population trends (ASR + reference month)",
+    },
+    "asr_trends_help": {
+        "fr": "Années passées : stocks de fin d'année du Refugee Data Finder (ASR). Année en cours : données ActivityInfo du mois de référence. Les retours (RET/RDP) ASR sont des flux annuels remis à zéro chaque année.",
+        "en": "Past years: Refugee Data Finder (ASR) end-of-year stocks. Current year: ActivityInfo data for the reference month. ASR returns (RET/RDP) are annual flows reset each year.",
+    },
+    "asr_trends_error": {
+        "fr": "Impossible de charger les données ASR Data Finder.",
+        "en": "Could not load ASR Data Finder data.",
+    },
+    "pop_trends_slider_title": {
+        "fr": "Évolution mensuelle (navigation par période)",
+        "en": "Monthly population trends (period navigation)",
+    },
+    "pop_trends_slider_help": {
+        "fr": "Faites glisser le curseur sous le graphique ou utilisez 6M / 1Y / 2Y / Tout pour naviguer mois par mois.",
+        "en": "Drag the slider under the chart or use 6M / 1Y / 2Y / All to navigate month by month.",
+    },
     "corridors": {
         "fr": "Corridors REF / ASY (origine → asile)",
         "en": "REF / ASY corridors (origin → asylum)",

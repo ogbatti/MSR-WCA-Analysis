@@ -53,6 +53,8 @@ forecast_lines = _charts_mod.forecast_lines
 hosts_composition_pie_map = _charts_mod.hosts_composition_pie_map
 mom_yoy_bars = _charts_mod.mom_yoy_bars
 monthly_trend_line = _charts_mod.monthly_trend_line
+population_trends_area_slider = _charts_mod.population_trends_area_slider
+population_trends_stacked_bar = _charts_mod.population_trends_stacked_bar
 psn_needs_bar = _charts_mod.psn_needs_bar
 registration_share_pie = _charts_mod.registration_share_pie
 returns_trend_line = _charts_mod.returns_trend_line
@@ -78,6 +80,7 @@ kpi_snapshot = _indicators_mod.kpi_snapshot
 mom_yoy = _indicators_mod.mom_yoy
 monthly_stock = _indicators_mod.monthly_stock
 origin_stock = _indicators_mod.origin_stock
+population_trends_hybrid = _indicators_mod.population_trends_hybrid
 psn_by_country = _indicators_mod.psn_by_country
 psn_by_need = _indicators_mod.psn_by_need
 registration_share_ref_asy = _indicators_mod.registration_share_ref_asy
@@ -92,6 +95,7 @@ from src.data_loader import (
     load_psn,
     load_total_psn,
 )
+from src.asr import ASR_YEAR_FROM, load_asr_population
 from src.forecasting import project_multi, scenario_table
 from src.i18n import t
 from src.narratives import (
@@ -752,7 +756,47 @@ def main() -> None:
         _narrative_box(narrative)
 
     with tab_trends:
+        # ASR history + reference-month current year
+        st.markdown(f"**{t('asr_trends_title', lang)}**")
+        asr_hosts = selected_hosts or wca_iso3
+        ref_year = int(str(month).split("-")[0])
+        asr_df = pd.DataFrame()
+        if asr_hosts:
+            try:
+                asr_df = load_asr_population(
+                    tuple(asr_hosts),
+                    year_from=ASR_YEAR_FROM,
+                    year_to=max(ASR_YEAR_FROM, ref_year - 1),
+                )
+            except Exception:  # noqa: BLE001
+                st.warning(t("asr_trends_error", lang))
+        hybrid = population_trends_hybrid(
+            asr_df,
+            current,
+            reference_year=ref_year,
+            pop_codes=pop_codes,
+            asylum_iso3=selected_hosts or None,
+        )
+        if not hybrid.empty:
+            st.plotly_chart(
+                population_trends_stacked_bar(hybrid, lang), width="stretch"
+            )
+            st.caption(t("asr_trends_help", lang))
+        elif asr_hosts:
+            st.info(
+                "Pas assez de données pour le graphique ASR."
+                if lang == "fr"
+                else "Not enough data for the ASR chart."
+            )
+
         monthly = monthly_stock(filtered_all)
+        st.markdown(f"**{t('pop_trends_slider_title', lang)}**")
+        if not monthly.empty:
+            st.plotly_chart(
+                population_trends_area_slider(monthly, lang), width="stretch"
+            )
+            st.caption(t("pop_trends_slider_help", lang))
+
         trend = mom_yoy(monthly, pop_codes=pop_codes)
         st.plotly_chart(monthly_trend_line(monthly, lang), width="stretch")
         st.caption(t("monthly_change_help", lang))
