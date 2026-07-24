@@ -7,7 +7,7 @@ STRINGS = {
         "en": "MSR — Monthly Statistical Report WCA",
     },
     "app_subtitle": {
-        "fr": "Déplacement forcé & apatridie · Afrique de l'Ouest et du Centre",
+        "fr": "Personnes déplacées de force et apatrides en Afrique de l'Ouest et du Centre",
         "en": "Forcibly displaced and stateless people in West & Central Africa",
     },
     "language": {"fr": "Langue", "en": "Language"},
