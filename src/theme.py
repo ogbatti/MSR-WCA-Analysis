@@ -110,6 +110,18 @@ APP_CSS = """
   [class*="viewerBadge"] { display: none !important; }
   a[href*="streamlit.io/cloud"],
   a[href*="share.streamlit.io"] { display: none !important; }
+  /* Streamlit Cloud embed bar (dimawca.app uses ?embed=true) */
+  [class*="_embed_"] [class*="_stateContainer_"] > [class*="_container_"],
+  [class*="_embed_"] [class*="_hostedName_"],
+  [class*="_embed_"] [class*="_linkOutText_"],
+  [class*="_embed_"] [class*="_linkOutIcon_"],
+  [class*="_embed_"] a[href*="utm_medium=oembed"] {
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    overflow: hidden !important;
+    pointer-events: none !important;
+  }
 
   h1, h2, h3 { color: var(--unhcr-blue-dark) !important; font-weight: 700 !important; }
 
@@ -289,6 +301,18 @@ LOGIN_PAGE_CSS = """
   [data-testid="stDecoration"] { display: none !important; }
   [data-testid="stStatusWidget"] { display: none !important; }
   [class*="viewerBadge"] { display: none !important; }
+  /* Streamlit Cloud embed bar (Built with Streamlit / Fullscreen) */
+  [class*="_embed_"] [class*="_stateContainer_"] > [class*="_container_"],
+  [class*="_embed_"] [class*="_hostedName_"],
+  [class*="_embed_"] [class*="_linkOutText_"],
+  [class*="_embed_"] [class*="_linkOutIcon_"],
+  [class*="_embed_"] a[href*="utm_medium=oembed"] {
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    overflow: hidden !important;
+    pointer-events: none !important;
+  }
   .stApp {
     background:
       radial-gradient(1200px 500px at 10% -10%, #CDE3F1 0%, transparent 55%),

@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DIMA WCA · MSR</title>
+    <style>
+      html, body { margin: 0; height: 100%; background: #fff; overflow: hidden; }
+      .wrap { position: relative; width: 100%; height: 100%; }
+      iframe { border: 0; width: 100%; height: 100%; display: block; }
+      /* Backup mask if Streamlit Cloud reintroduces the embed bar */
+      .hide-streamlit-bar {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 36px;
+        background: #ffffff;
+        z-index: 10;
+        pointer-events: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <iframe
+        src="https://dimawca.streamlit.app/?embed=true"
+        title="MSR WCA"
+        allow="clipboard-write"
+        loading="eager"
+      ></iframe>
+      <div class="hide-streamlit-bar" aria-hidden="true"></div>
+    </div>
+  </body>
+</html>
