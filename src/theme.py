@@ -395,10 +395,10 @@ LOGIN_PAGE_CSS = """
     background: #E8F4FB;
   }
   .lang-flag img {
-    width: 40px;
-    height: 27px;
+    width: 24px;
+    height: 16px;
     object-fit: cover;
-    border-radius: 3px;
+    border-radius: 2px;
     border: 1px solid #BFBFBF;
     box-shadow: 0 1px 2px rgba(11, 55, 84, 0.12);
   }
