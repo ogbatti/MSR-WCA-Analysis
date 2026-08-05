@@ -12,6 +12,10 @@ from src.i18n import t
 from src.theme import LOGIN_PAGE_CSS
 
 _LOGO_PATH = ROOT / "assets" / "unhcr_logo.svg"
+_FLAG_FR_PATH = ROOT / "assets" / "flag_fr.svg"
+_FLAG_UK_PATH = ROOT / "assets" / "flag_uk.svg"
+# Temporary: forgot-password UI disabled until SMTP AUTH is available.
+_FORGOT_PASSWORD_ENABLED = False
 
 
 def _mail():
@@ -27,6 +31,13 @@ def _logo_data_uri() -> str | None:
     b64 = base64.b64encode(raw).decode("ascii")
     mime = "image/svg+xml" if _LOGO_PATH.suffix.lower() == ".svg" else "image/png"
     return f"data:{mime};base64,{b64}"
+
+
+def _flag_data_uri(path) -> str | None:
+    if not path.exists():
+        return None
+    b64 = base64.b64encode(path.read_bytes()).decode("ascii")
+    return f"data:image/svg+xml;base64,{b64}"
 
 
 def _err_label(code: str | None, lang: str) -> str:
@@ -59,14 +70,44 @@ def _err_label(code: str | None, lang: str) -> str:
 
 
 def _login_lang_bar(lang: str) -> str:
-    """Compact FR/EN switch on the login canvas (sidebar is hidden)."""
-    c1, c2, c3 = st.columns([1, 1, 4])
+    """Compact language switch with FR / UK flags on the login canvas."""
+    if "lang" not in st.session_state:
+        st.session_state.lang = lang or "fr"
+    current = st.session_state.lang
+    fr_uri = _flag_data_uri(_FLAG_FR_PATH)
+    uk_uri = _flag_data_uri(_FLAG_UK_PATH)
+
+    c1, c2, _ = st.columns([1, 1, 5])
     with c1:
-        if st.button("FR", key="login_lang_fr", use_container_width=True):
+        if fr_uri:
+            st.markdown(
+                f'<div class="lang-flag{" active" if current == "fr" else ""}">'
+                f'<img src="{fr_uri}" alt="Français" title="Français" /></div>',
+                unsafe_allow_html=True,
+            )
+        if st.button(
+            "FR",
+            key="login_lang_fr",
+            use_container_width=True,
+            type="primary" if current == "fr" else "secondary",
+            help="Français",
+        ):
             st.session_state.lang = "fr"
             st.rerun()
     with c2:
-        if st.button("EN", key="login_lang_en", use_container_width=True):
+        if uk_uri:
+            st.markdown(
+                f'<div class="lang-flag{" active" if current == "en" else ""}">'
+                f'<img src="{uk_uri}" alt="English" title="English" /></div>',
+                unsafe_allow_html=True,
+            )
+        if st.button(
+            "EN",
+            key="login_lang_en",
+            use_container_width=True,
+            type="primary" if current == "en" else "secondary",
+            help="English",
+        ):
             st.session_state.lang = "en"
             st.rerun()
     return st.session_state.get("lang", lang)
@@ -148,11 +189,17 @@ def _render_auth_card(
     img = f'<img src="{logo}" alt="UNHCR" />' if logo else ""
     kicker = "REGIONAL BUREAU FOR WEST AND CENTRAL AFRICA - DIMA"
     title = t("app_title", lang)
+    forgot_open = bool(
+        _FORGOT_PASSWORD_ENABLED and st.session_state.get("auth_forgot_mode")
+    )
+    if not _FORGOT_PASSWORD_ENABLED:
+        st.session_state.pop("auth_forgot_mode", None)
+
     heading = (
         t("auth_must_change_title", lang)
         if mode == "force_password"
         else t("auth_forgot_title", lang)
-        if st.session_state.get("auth_forgot_mode")
+        if forgot_open
         else t("auth_login_title", lang)
     )
 
@@ -176,7 +223,7 @@ def _render_auth_card(
             unsafe_allow_html=True,
         )
 
-    if mode == "login" and st.session_state.get("auth_forgot_mode"):
+    if mode == "login" and forgot_open:
         _render_forgot_password(lang)
     elif mode == "login":
         status = auth_mod.auth_status_message()
@@ -200,16 +247,17 @@ def _render_auth_card(
             else:
                 auth_mod.login_user(st.session_state, found)
                 st.rerun()
-        _, col_forgot, _ = st.columns([2, 3, 2])
-        with col_forgot:
-            if st.button(
-                t("auth_forgot_link", lang),
-                key="auth_forgot_btn",
-                type="tertiary",
-                use_container_width=True,
-            ):
-                st.session_state["auth_forgot_mode"] = True
-                st.rerun()
+        if _FORGOT_PASSWORD_ENABLED:
+            _, col_forgot, _ = st.columns([2, 3, 2])
+            with col_forgot:
+                if st.button(
+                    t("auth_forgot_link", lang),
+                    key="auth_forgot_btn",
+                    type="tertiary",
+                    use_container_width=True,
+                ):
+                    st.session_state["auth_forgot_mode"] = True
+                    st.rerun()
     else:
         assert user is not None
         with st.form("auth_force_pwd"):

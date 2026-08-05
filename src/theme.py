@@ -382,6 +382,40 @@ LOGIN_PAGE_CSS = """
     font-size: 0.75rem;
     text-align: center;
   }
+  .lang-flag {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 0.2rem;
+    padding: 0.2rem;
+    border-radius: 4px;
+    border: 2px solid transparent;
+  }
+  .lang-flag.active {
+    border-color: #0072BC;
+    background: #E8F4FB;
+  }
+  .lang-flag img {
+    width: 40px;
+    height: 27px;
+    object-fit: cover;
+    border-radius: 3px;
+    border: 1px solid #BFBFBF;
+    box-shadow: 0 1px 2px rgba(11, 55, 84, 0.12);
+  }
+  /* Flag visuals above; compact click target below (labels hidden) */
+  div[data-testid="stHorizontalBlock"]:has(.lang-flag) button {
+    min-height: 1.35rem !important;
+    height: 1.35rem !important;
+    padding: 0 !important;
+    font-size: 0 !important;
+    line-height: 0 !important;
+    color: transparent !important;
+    border-radius: 4px !important;
+  }
+  div[data-testid="stHorizontalBlock"]:has(.lang-flag) {
+    gap: 0.5rem !important;
+    margin-bottom: 0.5rem !important;
+  }
   div[data-testid="stForm"] {
     border: none !important;
     padding: 0 !important;
