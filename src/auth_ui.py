@@ -9,10 +9,15 @@ import streamlit as st
 from src import auth as auth_mod
 from src.config import ROOT
 from src.i18n import t
-from src.mail import send_invite_notification, send_password_reset, smtp_configured
 from src.theme import LOGIN_PAGE_CSS
 
 _LOGO_PATH = ROOT / "assets" / "unhcr_logo.svg"
+
+
+def _mail():
+    from src import email_service
+
+    return email_service
 
 
 def _logo_data_uri() -> str | None:
@@ -100,7 +105,7 @@ def _render_forgot_password(lang: str) -> None:
             t("auth_forgot_submit", lang), type="primary", use_container_width=True
         )
     if submitted:
-        if not smtp_configured():
+        if not _mail().smtp_configured():
             st.warning(t("auth_forgot_no_smtp", lang))
         else:
             status, temp_pwd, user = auth_mod.request_password_reset(email)
@@ -109,7 +114,7 @@ def _render_forgot_password(lang: str) -> None:
             elif status != "reset_requested":
                 st.error(_err_label(status, lang))
             elif temp_pwd and user:
-                mail_err = send_password_reset(
+                mail_err = _mail().send_password_reset(
                     to_email=user.email,
                     name=user.name,
                     temp_password=temp_pwd,
@@ -325,7 +330,7 @@ def render_admin_users_panel(lang: str, user: auth_mod.AuthUser | None) -> None:
         elif created:
             st.success(t("auth_invite_ok", lang).format(email=created.email))
             if send_notify:
-                mail_err = send_invite_notification(
+                mail_err = _mail().send_invite_notification(
                     to_email=created.email,
                     name=created.name,
                     temp_password=temp_pwd,

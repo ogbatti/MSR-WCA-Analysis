@@ -31,6 +31,7 @@ for _mod_name in (
     "src.forecasting",
     "src.reports",
     "src.data_loader",
+    "src.email_service",
     "src.auth",
     "src.auth_ui",
 ):
