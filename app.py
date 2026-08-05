@@ -573,29 +573,24 @@ def main() -> None:
     previous = filtered_all[filtered_all["year_month"] == compare_month]
     kpi = kpi_snapshot(current, previous)
 
-    (
-        tab_overview,
-        tab_trends,
-        tab_maps,
-        tab_territory,
-        tab_shelter,
-        tab_reports,
-        tab_forecast,
-        tab_about,
-    ) = st.tabs(
-        [
-            t("overview", lang),
-            t("trends", lang),
-            t("maps", lang),
-            t("territory", lang),
-            t("shelter_psn", lang),
-            t("reports", lang),
-            t("forecast", lang),
-            t("about", lang),
-        ]
-    )
+    is_admin = auth_user is None or auth_user.role == "admin"
 
-    with tab_overview:
+    tab_keys = [
+        "overview",
+        "trends",
+        "maps",
+        "territory",
+        "shelter_psn",
+        "reports",
+    ]
+    if is_admin:
+        tab_keys.append("forecast")
+    tab_keys.append("about")
+
+    tabs = st.tabs([t(key, lang) for key in tab_keys])
+    tab_map = dict(zip(tab_keys, tabs))
+
+    with tab_map["overview"]:
         _kpi_cards(lang, kpi)
 
         by_type = (
@@ -703,25 +698,26 @@ def main() -> None:
                     )
                     st.metric(label, f"{row['share'] * 100:.1f}%", _fmt_int(row["total"]))
 
-        with st.expander(t("data_quality", lang)):
-            q = data_quality_summary(current)
-            if q.empty:
-                st.info("—")
-            else:
-                q_show = q.assign(
-                    pop=lambda d: d["pop_code"].map(lambda c: pop_label(c, lang)),
-                    sex_coverage=lambda d: (d["sex_coverage"] * 100).round(1),
-                    age_coverage=lambda d: (d["age_coverage"] * 100).round(1),
-                )[["pop", "total", "sex_coverage", "age_coverage", "aggregation"]].rename(
-                    columns={
-                        "pop": t("pop_types", lang),
-                        "total": t("total_population", lang),
-                        "sex_coverage": "% sexe" if lang == "fr" else "% sex",
-                        "age_coverage": "% âge" if lang == "fr" else "% age",
-                        "aggregation": "Aggregation",
-                    }
-                )
-                st.dataframe(q_show, width="stretch", hide_index=True)
+        if is_admin:
+            with st.expander(t("data_quality", lang)):
+                q = data_quality_summary(current)
+                if q.empty:
+                    st.info("—")
+                else:
+                    q_show = q.assign(
+                        pop=lambda d: d["pop_code"].map(lambda c: pop_label(c, lang)),
+                        sex_coverage=lambda d: (d["sex_coverage"] * 100).round(1),
+                        age_coverage=lambda d: (d["age_coverage"] * 100).round(1),
+                    )[["pop", "total", "sex_coverage", "age_coverage", "aggregation"]].rename(
+                        columns={
+                            "pop": t("pop_types", lang),
+                            "total": t("total_population", lang),
+                            "sex_coverage": "% sexe" if lang == "fr" else "% sex",
+                            "age_coverage": "% âge" if lang == "fr" else "% age",
+                            "aggregation": "Aggregation",
+                        }
+                    )
+                    st.dataframe(q_show, width="stretch", hide_index=True)
 
         export_cols = [
             c
@@ -777,7 +773,7 @@ def main() -> None:
         )
         _narrative_box(narrative)
 
-    with tab_trends:
+    with tab_map["trends"]:
         # ASR history (9 prior years) + reference-month current year = 10-year window
         asr_hosts = selected_hosts or wca_iso3
         ref_year = int(str(month).split("-")[0])
@@ -843,7 +839,7 @@ def main() -> None:
                     )
             st.dataframe(show, width="stretch", hide_index=True)
 
-    with tab_maps:
+    with tab_map["maps"]:
         composition = country_composition_geo(current, lang=lang)
         if wca_iso3:
             composition = composition[composition["asylum_iso3"].isin(wca_iso3)]
@@ -880,7 +876,7 @@ def main() -> None:
             )
         st.plotly_chart(corridor_map(flows, lang), width="stretch")
 
-    with tab_territory:
+    with tab_map["territory"]:
         profile_options = host_options["asylum_iso3"].tolist()
         profile_iso = st.selectbox(
             t("select_country", lang),
@@ -1032,7 +1028,7 @@ def main() -> None:
                 else "Select a country to display the detailed profile."
             )
 
-    with tab_shelter:
+    with tab_map["shelter_psn"]:
         acc_share = accommodation_share_ref_asy(current)
         if not acc_share.empty:
             st.plotly_chart(accommodation_share_pie(acc_share, lang), width="stretch")
@@ -1117,7 +1113,7 @@ def main() -> None:
                     width="stretch",
                 )
 
-    with tab_reports:
+    with tab_map["reports"]:
         from src.reports import BUILDERS, REPORT_CATALOG
 
         st.caption(t("reports_intro", lang))
@@ -1219,71 +1215,72 @@ def main() -> None:
                         )
             st.markdown("---")
 
-    with tab_forecast:
-        st.info(t("forecast_disclaimer", lang))
-        st.subheader(t("assumptions", lang))
-        st.dataframe(scenario_table(lang), width="stretch", hide_index=True)
+    if is_admin:
+        with tab_map["forecast"]:
+            st.info(t("forecast_disclaimer", lang))
+            st.subheader(t("assumptions", lang))
+            st.dataframe(scenario_table(lang), width="stretch", hide_index=True)
 
-        fc_pops = st.multiselect(
-            t("forecast_pop", lang),
-            options=pop_codes,
-            default=[c for c in ["REF", "IDP", "STA"] if c in pop_codes] or pop_codes[:1],
-            format_func=lambda c: f"{c} — {pop_label(c, lang)}",
-            key="fc_pops",
-        )
-        g1, g2, g3, g4 = st.columns(4)
-        growth = g1.slider(t("growth", lang), -0.05, 0.10, 0.015, 0.005)
-        conflict = g2.slider(t("conflict", lang), 0.0, 0.15, 0.02, 0.005)
-        returns = g3.slider(t("returns", lang), 0.0, 0.15, 0.025, 0.005)
-        horizon = g4.slider(t("horizon", lang), 2027, 2036, 2036, 1)
+            fc_pops = st.multiselect(
+                t("forecast_pop", lang),
+                options=pop_codes,
+                default=[c for c in ["REF", "IDP", "STA"] if c in pop_codes] or pop_codes[:1],
+                format_func=lambda c: f"{c} — {pop_label(c, lang)}",
+                key="fc_pops",
+            )
+            g1, g2, g3, g4 = st.columns(4)
+            growth = g1.slider(t("growth", lang), -0.05, 0.10, 0.015, 0.005)
+            conflict = g2.slider(t("conflict", lang), 0.0, 0.15, 0.02, 0.005)
+            returns = g3.slider(t("returns", lang), 0.0, 0.15, 0.025, 0.005)
+            horizon = g4.slider(t("horizon", lang), 2027, 2036, 2036, 1)
 
-        annual = annual_stock(filtered_all, pop_codes=fc_pops)
-        if not fc_pops:
-            st.warning(
-                "Sélectionnez au moins un type de population."
-                if lang == "fr"
-                else "Select at least one population type."
-            )
-        elif annual.empty:
-            st.warning(
-                "Historique annuel insuffisant."
-                if lang == "fr"
-                else "Insufficient annual history."
-            )
-        else:
-            forecast = project_multi(
-                annual,
-                pop_codes=fc_pops,
-                horizon_year=horizon,
-                growth=growth,
-                conflict=conflict,
-                returns=returns,
-            )
-            if forecast.empty or "scenario" not in forecast.columns:
+            annual = annual_stock(filtered_all, pop_codes=fc_pops)
+            if not fc_pops:
                 st.warning(
-                    "Impossible de calculer la projection pour la sélection actuelle."
+                    "Sélectionnez au moins un type de population."
                     if lang == "fr"
-                    else "Unable to compute the projection for the current selection."
+                    else "Select at least one population type."
+                )
+            elif annual.empty:
+                st.warning(
+                    "Historique annuel insuffisant."
+                    if lang == "fr"
+                    else "Insufficient annual history."
                 )
             else:
-                st.plotly_chart(forecast_lines(forecast, lang), width="stretch")
-
-                focus_code = fc_pops[0] if fc_pops else "REF"
-                narrative = build_forecast_narrative(
-                    lang,
-                    forecast[forecast["pop_code"] == focus_code],
-                    focus_code,
-                    horizon,
+                forecast = project_multi(
+                    annual,
+                    pop_codes=fc_pops,
+                    horizon_year=horizon,
+                    growth=growth,
+                    conflict=conflict,
+                    returns=returns,
                 )
-                _narrative_box(narrative)
-                with st.expander(t("scenario_compare", lang)):
-                    st.dataframe(
-                        forecast.sort_values(["pop_code", "scenario", "year"]),
-                        width="stretch",
-                        hide_index=True,
+                if forecast.empty or "scenario" not in forecast.columns:
+                    st.warning(
+                        "Impossible de calculer la projection pour la sélection actuelle."
+                        if lang == "fr"
+                        else "Unable to compute the projection for the current selection."
                     )
+                else:
+                    st.plotly_chart(forecast_lines(forecast, lang), width="stretch")
 
-    with tab_about:
+                    focus_code = fc_pops[0] if fc_pops else "REF"
+                    narrative = build_forecast_narrative(
+                        lang,
+                        forecast[forecast["pop_code"] == focus_code],
+                        focus_code,
+                        horizon,
+                    )
+                    _narrative_box(narrative)
+                    with st.expander(t("scenario_compare", lang)):
+                        st.dataframe(
+                            forecast.sort_values(["pop_code", "scenario", "year"]),
+                            width="stretch",
+                            hide_index=True,
+                        )
+
+    with tab_map["about"]:
         _about_content(lang)
         render_admin_users_panel(lang, auth_user)
 

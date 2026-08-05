@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 from fpdf import FPDF
 
-from src.config import ACCOMMODATION_LABELS, POP_TYPE_LABELS, PSN_NEED_LABELS
+from src.config import ACCOMMODATION_LABELS, POP_TYPE_LABELS, PSN_NEED_LABELS, ROOT
 from src.indicators import (
     accommodation_share_ref_asy,
     age_sex_pyramid,
@@ -146,18 +146,59 @@ def _pct(n: float | None) -> str:
     return f"{n * 100:.1f}%"
 
 
+def _pdf_safe(text: str) -> str:
+    """Normalize characters that break core PDF fonts (Helvetica)."""
+    if text is None:
+        return ""
+    s = str(text)
+    replacements = {
+        "\u2014": "-",  # em dash —
+        "\u2013": "-",  # en dash –
+        "\u2212": "-",  # minus
+        "\u00a0": " ",  # nbsp
+        "\u202f": " ",  # narrow nbsp
+        "\u2018": "'",
+        "\u2019": "'",
+        "\u201c": '"',
+        "\u201d": '"',
+        "\u2026": "...",
+        "\u00b7": "-",  # middle dot ·
+    }
+    for src, dst in replacements.items():
+        s = s.replace(src, dst)
+    return s
+
+
 def _font_paths() -> tuple[str | None, str | None]:
-    """Locate DejaVu fonts shipped with fpdf2 or common system fonts."""
+    """Locate Unicode TTF fonts (project assets first, then fpdf/matplotlib/system)."""
+    bundled_reg = ROOT / "assets" / "fonts" / "DejaVuSans.ttf"
+    bundled_bold = ROOT / "assets" / "fonts" / "DejaVuSans-Bold.ttf"
+    if bundled_reg.exists():
+        return str(bundled_reg), str(bundled_bold if bundled_bold.exists() else bundled_reg)
+
     try:
         import fpdf
 
         root = Path(fpdf.__file__).resolve().parent
-        regular = root / "font" / "DejaVuSans.ttf"
-        bold = root / "font" / "DejaVuSans-Bold.ttf"
-        if regular.exists():
-            return str(regular), str(bold) if bold.exists() else str(regular)
+        for sub in ("font", "fonts"):
+            regular = root / sub / "DejaVuSans.ttf"
+            bold = root / sub / "DejaVuSans-Bold.ttf"
+            if regular.exists():
+                return str(regular), str(bold if bold.exists() else regular)
     except Exception:
         pass
+
+    try:
+        import matplotlib
+
+        mroot = Path(matplotlib.__file__).resolve().parent / "mpl-data" / "fonts" / "ttf"
+        regular = mroot / "DejaVuSans.ttf"
+        bold = mroot / "DejaVuSans-Bold.ttf"
+        if regular.exists():
+            return str(regular), str(bold if bold.exists() else regular)
+    except Exception:
+        pass
+
     windir = Path(r"C:\Windows\Fonts")
     for reg, bold in (
         (windir / "arial.ttf", windir / "arialbd.ttf"),
@@ -172,7 +213,7 @@ class MsrPdf(FPDF):
     def __init__(self, lang: str, report_title: str) -> None:
         super().__init__(format="A4")
         self.lang = lang
-        self.report_title = report_title
+        self.report_title = _pdf_safe(report_title)
         self.set_auto_page_break(auto=True, margin=18)
         reg, bold = _font_paths()
         if reg:
@@ -189,7 +230,7 @@ class MsrPdf(FPDF):
         self.cell(0, 6, "UNHCR · RBWCA · DIMA · MSR WCA", ln=True)
         self.set_font(self.font_family, "", 8)
         self.set_text_color(80, 80, 80)
-        self.cell(0, 5, self.report_title, ln=True)
+        self.cell(0, 5, _pdf_safe(self.report_title), ln=True)
         self.ln(2)
         self.set_draw_color(0, 114, 188)
         self.set_line_width(0.4)
@@ -211,36 +252,36 @@ class MsrPdf(FPDF):
         self.set_x(self.l_margin)
         self.set_font(self.font_family, "B", 14)
         self.set_text_color(11, 55, 84)
-        self.multi_cell(0, 8, text)
+        self.multi_cell(0, 8, _pdf_safe(text))
         self.ln(2)
 
     def h2(self, text: str) -> None:
         self.set_x(self.l_margin)
         self.set_font(self.font_family, "B", 11)
         self.set_text_color(0, 114, 188)
-        self.multi_cell(0, 7, text)
+        self.multi_cell(0, 7, _pdf_safe(text))
         self.ln(1)
 
     def p(self, text: str) -> None:
         self.set_x(self.l_margin)
         self.set_font(self.font_family, "", 10)
         self.set_text_color(38, 38, 38)
-        self.multi_cell(0, 5.5, text)
+        self.multi_cell(0, 5.5, _pdf_safe(text))
         self.ln(1)
 
     def bullet(self, text: str) -> None:
         self.set_x(self.l_margin)
         self.set_font(self.font_family, "", 10)
         self.set_text_color(38, 38, 38)
-        self.multi_cell(0, 5.5, f"- {text}")
+        self.multi_cell(0, 5.5, _pdf_safe(f"- {text}"))
 
     def kv(self, label: str, value: str) -> None:
         self.set_x(self.l_margin)
         self.set_font(self.font_family, "B", 10)
         self.set_text_color(38, 38, 38)
-        self.cell(70, 6, label)
+        self.cell(70, 6, _pdf_safe(label))
         self.set_font(self.font_family, "", 10)
-        self.multi_cell(0, 6, value)
+        self.multi_cell(0, 6, _pdf_safe(value))
         self.ln(0.5)
 
     def table(self, headers: list[str], rows: list[list[str]], col_widths: list[float] | None = None) -> None:
@@ -254,20 +295,15 @@ class MsrPdf(FPDF):
         self.set_fill_color(205, 227, 241)
         self.set_text_color(11, 55, 84)
         for i, h in enumerate(headers):
-            self.cell(widths[i], 7, h, border=1, fill=True)
+            self.cell(widths[i], 7, _pdf_safe(h), border=1, fill=True)
         self.ln()
         self.set_font(self.font_family, "", 9)
         self.set_text_color(38, 38, 38)
-        fill = False
         for row in rows:
-            if self.get_y() > 270:
-                self.add_page()
             self.set_x(self.l_margin)
-            self.set_fill_color(247, 251, 254)
             for i, cell in enumerate(row):
-                self.cell(widths[i], 6, str(cell)[:48], border=1, fill=fill)
+                self.cell(widths[i], 6, _pdf_safe(str(cell)), border=1)
             self.ln()
-            fill = not fill
         self.ln(2)
 
     def chart(self, png: bytes | None, width: float = 180) -> None:

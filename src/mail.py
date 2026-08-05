@@ -130,6 +130,65 @@ def send_email(msg: EmailMessage) -> str | None:
     return None
 
 
+def build_password_reset_email(
+    *,
+    to_email: str,
+    name: str,
+    temp_password: str,
+    lang: str,
+) -> EmailMessage:
+    url = app_public_url()
+    display = (name or to_email).strip()
+    if lang == "en":
+        subject = "Password reset — MSR WCA dashboard"
+        body = (
+            f"Hello {display},\n\n"
+            "A password reset was requested for your account on the MSR WCA dashboard.\n\n"
+            f"URL: {url}\n"
+            f"Email: {to_email}\n"
+            f"Temporary password: {temp_password}\n\n"
+            "On sign-in you will be asked to set a new password.\n"
+            "If you did not request this reset, please contact the administrator.\n\n"
+            "— DIMA / UNHCR Regional Bureau for West and Central Africa\n"
+        )
+    else:
+        subject = "Réinitialisation du mot de passe — tableau de bord MSR WCA"
+        body = (
+            f"Bonjour {display},\n\n"
+            "Une réinitialisation de mot de passe a été demandée pour votre compte "
+            "sur le tableau de bord MSR WCA.\n\n"
+            f"URL : {url}\n"
+            f"E-mail : {to_email}\n"
+            f"Mot de passe temporaire : {temp_password}\n\n"
+            "Lors de la connexion, vous devrez définir un nouveau mot de passe.\n"
+            "Si vous n'êtes pas à l'origine de cette demande, contactez l'administrateur.\n\n"
+            "— DIMA / HCR Bureau régional pour l'Afrique de l'Ouest et du Centre\n"
+        )
+
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"] = str(_smtp_settings()["from_addr"])
+    msg["To"] = to_email
+    msg.set_content(body)
+    return msg
+
+
+def send_password_reset(
+    *,
+    to_email: str,
+    name: str,
+    temp_password: str,
+    lang: str,
+) -> str | None:
+    msg = build_password_reset_email(
+        to_email=to_email,
+        name=name,
+        temp_password=temp_password,
+        lang=lang,
+    )
+    return send_email(msg)
+
+
 def send_invite_notification(
     *,
     to_email: str,

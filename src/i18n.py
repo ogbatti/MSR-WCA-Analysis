@@ -276,6 +276,34 @@ STRINGS = {
         "fr": "Aucun compte. Définissez AUTH_ADMIN_EMAIL et AUTH_ADMIN_PASSWORD dans les secrets, puis rechargez.",
         "en": "No accounts yet. Set AUTH_ADMIN_EMAIL and AUTH_ADMIN_PASSWORD in secrets, then reload.",
     },
+    "auth_forgot_link": {
+        "fr": "Mot de passe oublié ?",
+        "en": "Forgot password?",
+    },
+    "auth_forgot_title": {
+        "fr": "Réinitialisation du mot de passe",
+        "en": "Password reset",
+    },
+    "auth_forgot_help": {
+        "fr": "Saisissez votre e-mail. Si un compte actif existe, un mot de passe temporaire vous sera envoyé.",
+        "en": "Enter your email. If an active account exists, a temporary password will be sent to you.",
+    },
+    "auth_forgot_submit": {
+        "fr": "Envoyer le lien de réinitialisation",
+        "en": "Send reset instructions",
+    },
+    "auth_forgot_no_smtp": {
+        "fr": "La réinitialisation automatique n'est pas disponible. Veuillez contacter l'administrateur.",
+        "en": "Automatic reset is not available. Please contact the administrator.",
+    },
+    "auth_reset_requested": {
+        "fr": "Si un compte actif correspond à cet e-mail, vous recevrez un mot de passe temporaire sous peu.",
+        "en": "If an active account matches this email, you will receive a temporary password shortly.",
+    },
+    "auth_back_to_login": {
+        "fr": "Retour à la connexion",
+        "en": "Back to sign in",
+    },
 }
 
 

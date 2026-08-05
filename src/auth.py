@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import json
 import re
+import secrets
+import string
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
@@ -350,3 +352,31 @@ def auth_status_message() -> str:
     if _setting("AUTH_ADMIN_EMAIL") and _setting("AUTH_ADMIN_PASSWORD"):
         return ""
     return "need_bootstrap"
+
+
+def _generate_temp_password(length: int = 12) -> str:
+    alphabet = string.ascii_letters + string.digits
+    return "".join(secrets.choice(alphabet) for _ in range(length))
+
+
+def request_password_reset(email: str) -> tuple[str, str | None, AuthUser | None]:
+    """Prepare a password reset for an active account.
+
+    Returns ``(status, temp_password, user)``. The password is **not** saved
+    until ``complete_password_reset`` is called after a successful notification.
+    """
+    email = _normalize_email(email)
+    if not validate_email(email):
+        return "invalid_email", None, None
+    user = get_user(email)
+    if user is None or not user.active:
+        return "reset_requested", None, None
+    temp_pwd = _generate_temp_password()
+    err = validate_password_strength(temp_pwd)
+    if err:
+        return err, None, None
+    return "reset_requested", temp_pwd, user
+
+
+def complete_password_reset(email: str, temp_password: str) -> str | None:
+    return set_password(email, temp_password, force_must_change=True)

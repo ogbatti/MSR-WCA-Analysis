@@ -9,7 +9,7 @@ import streamlit as st
 from src import auth as auth_mod
 from src.config import ROOT
 from src.i18n import t
-from src.mail import send_invite_notification
+from src.mail import send_invite_notification, send_password_reset, smtp_configured
 from src.theme import LOGIN_PAGE_CSS
 
 _LOGO_PATH = ROOT / "assets" / "unhcr_logo.svg"
@@ -45,6 +45,7 @@ def _err_label(code: str | None, lang: str) -> str:
         "smtp_not_configured": t("auth_err_smtp_config", lang),
         "smtp_send_failed": t("auth_err_smtp_send", lang),
         "smtp_auth_failed": t("auth_err_smtp_auth", lang),
+        "reset_requested": t("auth_reset_requested", lang),
     }
     base = mapping.get(code, code)
     if detail:
@@ -88,6 +89,47 @@ def render_login_gate(lang: str) -> auth_mod.AuthUser | None:
     return None  # pragma: no cover
 
 
+def _render_forgot_password(lang: str) -> None:
+    st.markdown(
+        f'<p class="login-help">{t("auth_forgot_help", lang)}</p>',
+        unsafe_allow_html=True,
+    )
+    with st.form("auth_forgot_form"):
+        email = st.text_input(t("auth_email", lang), placeholder="name@unhcr.org")
+        submitted = st.form_submit_button(
+            t("auth_forgot_submit", lang), type="primary", use_container_width=True
+        )
+    if submitted:
+        if not smtp_configured():
+            st.warning(t("auth_forgot_no_smtp", lang))
+        else:
+            status, temp_pwd, user = auth_mod.request_password_reset(email)
+            if status == "invalid_email":
+                st.error(_err_label(status, lang))
+            elif status != "reset_requested":
+                st.error(_err_label(status, lang))
+            elif temp_pwd and user:
+                mail_err = send_password_reset(
+                    to_email=user.email,
+                    name=user.name,
+                    temp_password=temp_pwd,
+                    lang=lang,
+                )
+                if mail_err:
+                    st.warning(_err_label(mail_err, lang))
+                else:
+                    err = auth_mod.complete_password_reset(user.email, temp_pwd)
+                    if err:
+                        st.error(_err_label(err, lang))
+                    else:
+                        st.success(t("auth_reset_requested", lang))
+            else:
+                st.success(t("auth_reset_requested", lang))
+    if st.button(t("auth_back_to_login", lang), key="auth_back_login"):
+        st.session_state.pop("auth_forgot_mode", None)
+        st.rerun()
+
+
 def _render_auth_card(
     lang: str,
     *,
@@ -104,6 +146,8 @@ def _render_auth_card(
     heading = (
         t("auth_must_change_title", lang)
         if mode == "force_password"
+        else t("auth_forgot_title", lang)
+        if st.session_state.get("auth_forgot_mode")
         else t("auth_login_title", lang)
     )
 
@@ -127,7 +171,9 @@ def _render_auth_card(
             unsafe_allow_html=True,
         )
 
-    if mode == "login":
+    if mode == "login" and st.session_state.get("auth_forgot_mode"):
+        _render_forgot_password(lang)
+    elif mode == "login":
         status = auth_mod.auth_status_message()
         if status == "need_bootstrap":
             st.markdown(
@@ -148,6 +194,16 @@ def _render_auth_card(
                 st.error(t("auth_err_credentials", lang))
             else:
                 auth_mod.login_user(st.session_state, found)
+                st.rerun()
+        _, col_forgot, _ = st.columns([2, 3, 2])
+        with col_forgot:
+            if st.button(
+                t("auth_forgot_link", lang),
+                key="auth_forgot_btn",
+                type="tertiary",
+                use_container_width=True,
+            ):
+                st.session_state["auth_forgot_mode"] = True
                 st.rerun()
     else:
         assert user is not None
