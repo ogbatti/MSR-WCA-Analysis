@@ -930,26 +930,6 @@ def main() -> None:
                     use_container_width=True,
                     wrap_longitude=False,
                 )
-                if "geo_level" in composition_admin.columns:
-                    levels = set(composition_admin["geo_level"].dropna().astype(str))
-                    if levels == {"country"}:
-                        st.caption(
-                            "Localisation au centroïde du pays (Admin1/Admin2 non renseignés)."
-                            if lang == "fr"
-                            else "Located at country centroid (Admin1/Admin2 not reported)."
-                        )
-                    elif "admin2" in levels:
-                        st.caption(
-                            "Niveau géographique : Admin2 (lorsqu'il est renseigné)."
-                            if lang == "fr"
-                            else "Geographic level: Admin2 (when reported)."
-                        )
-                    elif "admin1" in levels:
-                        st.caption(
-                            "Niveau géographique : Admin1 (Admin2 / Admin3 non disponibles)."
-                            if lang == "fr"
-                            else "Geographic level: Admin1 (Admin2 / Admin3 not available)."
-                        )
 
             points = residence_map_points(
                 country_df, geoloc, profile_iso, countries_df=countries
