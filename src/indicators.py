@@ -197,6 +197,51 @@ def mom_yoy(monthly: pd.DataFrame, pop_codes: list[str] | None = None) -> pd.Dat
     return totals
 
 
+def nationals_ref_asy_in_region(
+    df: pd.DataFrame,
+    *,
+    origin_iso3: str,
+    wca_iso3: list[str] | None = None,
+    origin_hcr3: str | None = None,
+) -> float:
+    """
+    Total REF + ASY from ``origin_iso3`` hosted in WCA asylum countries.
+    """
+    if df is None or df.empty or not origin_iso3:
+        return 0.0
+    out = df[df["pop_code"].isin(["REF", "ASY"])].copy()
+    if out.empty:
+        return 0.0
+    if wca_iso3:
+        out = out[out["asylum_iso3"].astype(str).str.upper().isin(
+            {str(c).upper() for c in wca_iso3 if c}
+        )]
+    if out.empty:
+        return 0.0
+
+    target_iso = str(origin_iso3).strip().upper()
+    mask = pd.Series(False, index=out.index)
+    if "origin_iso3" in out.columns:
+        mask = out["origin_iso3"].fillna("").astype(str).str.strip().str.upper() == target_iso
+    if origin_hcr3 and "origin_hcr3" in out.columns:
+        target_hcr = str(origin_hcr3).strip().upper()
+        mask = mask | (
+            out["origin_hcr3"].fillna("").astype(str).str.strip().str.upper() == target_hcr
+        )
+    if not mask.any() and "origin_hcr3" in out.columns and "asylum_hcr3" in df.columns:
+        # Fallback: country of asylum HCR3 for the selected ISO used as nationality code
+        host = df[df["asylum_iso3"].astype(str).str.upper() == target_iso]
+        if not host.empty and "asylum_hcr3" in host.columns:
+            hcr = str(host.iloc[0]["asylum_hcr3"] or "").strip().upper()
+            if hcr:
+                mask = (
+                    out["origin_hcr3"].fillna("").astype(str).str.strip().str.upper() == hcr
+                )
+    if not mask.any():
+        return 0.0
+    return float(out.loc[mask, "total"].sum())
+
+
 def kpi_snapshot(df: pd.DataFrame, prev_df: pd.DataFrame | None = None) -> dict:
     total = float(df["total"].sum()) if not df.empty else 0.0
     female = float(df["female"].sum()) if not df.empty else 0.0

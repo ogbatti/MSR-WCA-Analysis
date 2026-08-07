@@ -67,6 +67,10 @@ STRINGS = {
     "narrative": {"fr": "Interprétation", "en": "Narrative"},
     "kpi_total": {"fr": "Population totale", "en": "Total population"},
     "kpi_ref_asy": {"fr": "REF + ASY", "en": "REF + ASY"},
+    "kpi_nationals_abroad": {
+        "fr": "REF+ASY de ce pays dans la région",
+        "en": "REF+ASY from this country in the region",
+    },
     "kpi_idp": {"fr": "PDI", "en": "IDPs"},
     "kpi_sta": {"fr": "Apatrides", "en": "Stateless"},
     "kpi_female": {"fr": "% Femmes*", "en": "% Female*"},

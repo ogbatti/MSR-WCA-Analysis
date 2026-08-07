@@ -68,6 +68,7 @@ admin2_map_points = _indicators_mod.admin2_map_points
 admin2_stock = _indicators_mod.admin2_stock
 residence_map_points = _indicators_mod.residence_map_points
 admin_composition_geo = _indicators_mod.admin_composition_geo
+nationals_ref_asy_in_region = _indicators_mod.nationals_ref_asy_in_region
 accommodation_share_ref_asy = _indicators_mod.accommodation_share_ref_asy
 accommodation_stock = _indicators_mod.accommodation_stock
 age_adult_detail = _indicators_mod.age_adult_detail
@@ -899,11 +900,32 @@ def main() -> None:
             country_name = host_map.get(profile_iso, profile_iso)
             st.subheader(f"{t('country_profile', lang)} — {country_name}")
             c_kpi = kpi_snapshot(country_df, previous[previous["asylum_iso3"] == profile_iso])
-            k1, k2, k3, k4 = st.columns(4)
+            origin_hcr = None
+            if "asylum_hcr3" in country_df.columns and not country_df.empty:
+                origin_hcr = str(country_df.iloc[0].get("asylum_hcr3") or "") or None
+            elif (
+                countries is not None
+                and not countries.empty
+                and "iso3" in countries.columns
+                and "country_hcr3" in countries.columns
+            ):
+                hit = countries[
+                    countries["iso3"].astype(str).str.upper() == str(profile_iso).upper()
+                ]
+                if not hit.empty:
+                    origin_hcr = str(hit.iloc[0].get("country_hcr3") or "") or None
+            nationals_abroad = nationals_ref_asy_in_region(
+                current,
+                origin_iso3=profile_iso,
+                wca_iso3=wca_iso3 or None,
+                origin_hcr3=origin_hcr,
+            )
+            k1, k2, k3, k4, k5 = st.columns(5)
             k1.metric(t("kpi_total", lang), _fmt_int(c_kpi["total"]))
             k2.metric(t("kpi_ref_asy", lang), _fmt_int(c_kpi.get("ref_asy")))
             k3.metric(t("kpi_idp", lang), _fmt_int(c_kpi.get("idp")))
             k4.metric(t("kpi_mom", lang), _fmt_pct(c_kpi.get("mom")))
+            k5.metric(t("kpi_nationals_abroad", lang), _fmt_int(nationals_abroad))
 
             composition_admin = admin_composition_geo(
                 country_df, geoloc, profile_iso, countries_df=countries
