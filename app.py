@@ -121,8 +121,6 @@ st.set_page_config(
 )
 
 LOGO_PATH = ROOT / "assets" / "unhcr_logo.svg"
-FLAG_FR_PATH = ROOT / "assets" / "flag_fr.svg"
-FLAG_UK_PATH = ROOT / "assets" / "flag_uk.svg"
 
 
 def _logo_data_uri() -> str | None:
@@ -134,54 +132,17 @@ def _logo_data_uri() -> str | None:
     return f"data:{mime};base64,{b64}"
 
 
-def _flag_data_uri(path: Path) -> str | None:
-    if not path.exists():
-        return None
-    b64 = base64.b64encode(path.read_bytes()).decode("ascii")
-    return f"data:image/svg+xml;base64,{b64}"
-
-
 def _language_selector() -> str:
-    """Sidebar language picker with SVG flags (reliable on Windows)."""
+    """Sidebar language picker (dropdown)."""
     if "lang" not in st.session_state:
         st.session_state.lang = "fr"
 
-    fr_uri = _flag_data_uri(FLAG_FR_PATH)
-    uk_uri = _flag_data_uri(FLAG_UK_PATH)
-    current = st.session_state.lang
-
-    st.sidebar.markdown(
-        f"**{t('language', current)}**",
+    st.sidebar.selectbox(
+        t("language", st.session_state.lang),
+        options=["fr", "en"],
+        format_func=lambda c: "Français" if c == "fr" else "English",
+        key="lang",
     )
-    c_fr, c_en = st.sidebar.columns(2)
-    with c_fr:
-        if fr_uri:
-            st.markdown(
-                f'<div class="lang-flag"><img src="{fr_uri}" alt="France" /></div>',
-                unsafe_allow_html=True,
-            )
-        if st.button(
-            "FR",
-            key="lang_fr",
-            use_container_width=True,
-            type="primary" if current == "fr" else "secondary",
-        ):
-            st.session_state.lang = "fr"
-            st.rerun()
-    with c_en:
-        if uk_uri:
-            st.markdown(
-                f'<div class="lang-flag"><img src="{uk_uri}" alt="United Kingdom" /></div>',
-                unsafe_allow_html=True,
-            )
-        if st.button(
-            "EN",
-            key="lang_en",
-            use_container_width=True,
-            type="primary" if current == "en" else "secondary",
-        ):
-            st.session_state.lang = "en"
-            st.rerun()
     return st.session_state.lang
 
 

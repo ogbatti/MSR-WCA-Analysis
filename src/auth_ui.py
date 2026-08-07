@@ -12,8 +12,6 @@ from src.i18n import t
 from src.theme import LOGIN_PAGE_CSS
 
 _LOGO_PATH = ROOT / "assets" / "unhcr_logo.svg"
-_FLAG_FR_PATH = ROOT / "assets" / "flag_fr.svg"
-_FLAG_UK_PATH = ROOT / "assets" / "flag_uk.svg"
 # Temporary: forgot-password UI disabled until SMTP AUTH is available.
 _FORGOT_PASSWORD_ENABLED = False
 
@@ -31,13 +29,6 @@ def _logo_data_uri() -> str | None:
     b64 = base64.b64encode(raw).decode("ascii")
     mime = "image/svg+xml" if _LOGO_PATH.suffix.lower() == ".svg" else "image/png"
     return f"data:{mime};base64,{b64}"
-
-
-def _flag_data_uri(path) -> str | None:
-    if not path.exists():
-        return None
-    b64 = base64.b64encode(path.read_bytes()).decode("ascii")
-    return f"data:image/svg+xml;base64,{b64}"
 
 
 def _err_label(code: str | None, lang: str) -> str:
@@ -70,47 +61,16 @@ def _err_label(code: str | None, lang: str) -> str:
 
 
 def _login_lang_bar(lang: str) -> str:
-    """Compact language switch with FR / UK flags on the login canvas."""
+    """Compact language dropdown on the login canvas."""
     if "lang" not in st.session_state:
         st.session_state.lang = lang or "fr"
-    current = st.session_state.lang
-    fr_uri = _flag_data_uri(_FLAG_FR_PATH)
-    uk_uri = _flag_data_uri(_FLAG_UK_PATH)
-
-    c1, c2, _ = st.columns([1, 1, 5])
-    with c1:
-        if fr_uri:
-            st.markdown(
-                f'<div class="lang-flag{" active" if current == "fr" else ""}">'
-                f'<img src="{fr_uri}" alt="Français" title="Français" /></div>',
-                unsafe_allow_html=True,
-            )
-        if st.button(
-            "FR",
-            key="login_lang_fr",
-            use_container_width=True,
-            type="primary" if current == "fr" else "secondary",
-            help="Français",
-        ):
-            st.session_state.lang = "fr"
-            st.rerun()
-    with c2:
-        if uk_uri:
-            st.markdown(
-                f'<div class="lang-flag{" active" if current == "en" else ""}">'
-                f'<img src="{uk_uri}" alt="English" title="English" /></div>',
-                unsafe_allow_html=True,
-            )
-        if st.button(
-            "EN",
-            key="login_lang_en",
-            use_container_width=True,
-            type="primary" if current == "en" else "secondary",
-            help="English",
-        ):
-            st.session_state.lang = "en"
-            st.rerun()
-    return st.session_state.get("lang", lang)
+    st.selectbox(
+        t("language", st.session_state.lang),
+        options=["fr", "en"],
+        format_func=lambda c: "Français" if c == "fr" else "English",
+        key="lang",
+    )
+    return st.session_state.lang
 
 
 def render_login_gate(lang: str) -> auth_mod.AuthUser | None:
