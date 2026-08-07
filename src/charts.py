@@ -647,9 +647,9 @@ def age_sex_pyramid_chart(pyramid: pd.DataFrame, lang: str) -> go.Figure:
     max_abs = max(float(d["female"].max() or 0), float(d["male"].max() or 0), 1.0)
     fig.update_layout(
         barmode="overlay",
-        height=460,
-        margin=dict(l=40, r=20, t=88, b=40),
-        title=dict(y=0.98, yanchor="top", pad=dict(b=14)),
+        height=480,
+        margin=dict(l=40, r=20, t=120, b=40),
+        title=dict(y=0.98, yanchor="top", pad=dict(b=48)),
         xaxis=dict(
             title=_total_label(lang),
             tickvals=[-max_abs, -max_abs / 2, 0, max_abs / 2, max_abs],
@@ -662,7 +662,14 @@ def age_sex_pyramid_chart(pyramid: pd.DataFrame, lang: str) -> go.Figure:
             ],
         ),
         yaxis=dict(title="" if lang == "en" else "Tranche d'âge", categoryorder="array", categoryarray=list(d["age_band"])),
-        legend=dict(orientation="h", yanchor="bottom", y=1.16, x=0, xanchor="left"),
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            x=0,
+            xanchor="left",
+            bgcolor="rgba(0,0,0,0)",
+        ),
     )
     return fig
 

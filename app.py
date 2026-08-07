@@ -200,6 +200,8 @@ def _render_expandable_folium(
     zoom: int | None = None,
 ) -> None:
     """Show a Folium map with an Expand button opening a larger dialog."""
+    import streamlit.components.v1 as components
+
     _, btn = st.columns([5, 1])
     with btn:
         open_big = st.button(
@@ -224,7 +226,12 @@ def _render_expandable_folium(
 
         @st.dialog(t("map_expand_title", lang), width="large")
         def _big_map() -> None:
-            st_folium(fmap, height=large_height, key=f"{key}__dlg", **common)
+            # st_folium often renders blank inside dialogs; embed Folium HTML instead
+            try:
+                map_html = fmap.get_root().render()
+            except Exception:  # noqa: BLE001
+                map_html = fmap._repr_html_()
+            components.html(map_html, height=large_height, scrolling=False)
 
         _big_map()
 
@@ -254,7 +261,7 @@ def _render_expandable_plotly(
         @st.dialog(t("map_expand_title", lang), width="large")
         def _big_chart() -> None:
             big = go.Figure(fig)
-            big.update_layout(height=large_height)
+            big.update_layout(height=large_height, margin=dict(l=10, r=10, t=50, b=10))
             st.plotly_chart(big, width="stretch", key=f"{key}__dlg")
 
         _big_chart()

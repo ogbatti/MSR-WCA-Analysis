@@ -52,6 +52,7 @@ STRINGS = {
     },
     "map_expand": {"fr": "Agrandir", "en": "Expand"},
     "map_expand_title": {"fr": "Carte agrandie", "en": "Expanded map"},
+    "map_expand_close": {"fr": "Fermer", "en": "Close"},
     "shelter_psn": {"fr": "Hébergement & PSN", "en": "Shelter & PSN"},
     "admin": {"fr": "Admin1 / Admin2", "en": "Admin1 / Admin2"},
     "reports": {"fr": "Rapports", "en": "Reports"},
