@@ -197,27 +197,27 @@ def mom_yoy(monthly: pd.DataFrame, pop_codes: list[str] | None = None) -> pd.Dat
     return totals
 
 
-def nationals_ref_asy_in_region(
+def _nationals_ref_asy_subset(
     df: pd.DataFrame,
     *,
     origin_iso3: str,
     wca_iso3: list[str] | None = None,
     origin_hcr3: str | None = None,
-) -> float:
-    """
-    Total REF + ASY from ``origin_iso3`` hosted in WCA asylum countries.
-    """
+) -> pd.DataFrame:
+    """REF + ASY rows for nationals of ``origin_iso3`` hosted in WCA."""
     if df is None or df.empty or not origin_iso3:
-        return 0.0
+        return pd.DataFrame()
     out = df[df["pop_code"].isin(["REF", "ASY"])].copy()
     if out.empty:
-        return 0.0
+        return pd.DataFrame()
     if wca_iso3:
-        out = out[out["asylum_iso3"].astype(str).str.upper().isin(
-            {str(c).upper() for c in wca_iso3 if c}
-        )]
+        out = out[
+            out["asylum_iso3"].astype(str).str.upper().isin(
+                {str(c).upper() for c in wca_iso3 if c}
+            )
+        ]
     if out.empty:
-        return 0.0
+        return pd.DataFrame()
 
     target_iso = str(origin_iso3).strip().upper()
     mask = pd.Series(False, index=out.index)
@@ -229,7 +229,6 @@ def nationals_ref_asy_in_region(
             out["origin_hcr3"].fillna("").astype(str).str.strip().str.upper() == target_hcr
         )
     if not mask.any() and "origin_hcr3" in out.columns and "asylum_hcr3" in df.columns:
-        # Fallback: country of asylum HCR3 for the selected ISO used as nationality code
         host = df[df["asylum_iso3"].astype(str).str.upper() == target_iso]
         if not host.empty and "asylum_hcr3" in host.columns:
             hcr = str(host.iloc[0]["asylum_hcr3"] or "").strip().upper()
@@ -238,8 +237,95 @@ def nationals_ref_asy_in_region(
                     out["origin_hcr3"].fillna("").astype(str).str.strip().str.upper() == hcr
                 )
     if not mask.any():
+        return pd.DataFrame()
+    return out.loc[mask].copy()
+
+
+def nationals_ref_asy_in_region(
+    df: pd.DataFrame,
+    *,
+    origin_iso3: str,
+    wca_iso3: list[str] | None = None,
+    origin_hcr3: str | None = None,
+) -> float:
+    """
+    Total REF + ASY from ``origin_iso3`` hosted in WCA asylum countries.
+    """
+    out = _nationals_ref_asy_subset(
+        df,
+        origin_iso3=origin_iso3,
+        wca_iso3=wca_iso3,
+        origin_hcr3=origin_hcr3,
+    )
+    if out.empty:
         return 0.0
-    return float(out.loc[mask, "total"].sum())
+    return float(out["total"].sum())
+
+
+def nationals_ref_asy_by_host(
+    df: pd.DataFrame,
+    *,
+    origin_iso3: str,
+    wca_iso3: list[str] | None = None,
+    origin_hcr3: str | None = None,
+    exclude_same_country: bool = True,
+) -> pd.DataFrame:
+    """
+    REF + ASY from ``origin_iso3`` aggregated by asylum country (WCA hosts).
+
+    Returns one row per host with totals and asylum / origin coordinates.
+    """
+    out = _nationals_ref_asy_subset(
+        df,
+        origin_iso3=origin_iso3,
+        wca_iso3=wca_iso3,
+        origin_hcr3=origin_hcr3,
+    )
+    if out.empty:
+        return pd.DataFrame()
+
+    target_iso = str(origin_iso3).strip().upper()
+    if exclude_same_country and "asylum_iso3" in out.columns:
+        out = out[
+            out["asylum_iso3"].fillna("").astype(str).str.strip().str.upper() != target_iso
+        ]
+    if out.empty:
+        return pd.DataFrame()
+
+    name_cols = [
+        c
+        for c in ["asylum_iso3", "asylum_name_en", "asylum_name_fr", "asylum_lat", "asylum_lon"]
+        if c in out.columns
+    ]
+    if "asylum_iso3" not in name_cols:
+        return pd.DataFrame()
+    hosts = (
+        out.groupby(name_cols, as_index=False, dropna=False)
+        .agg(total=("total", "sum"))
+        .sort_values("total", ascending=False)
+    )
+    hosts = hosts[hosts["total"] > 0].copy()
+    if hosts.empty:
+        return pd.DataFrame()
+
+    # Origin centroid from nationals' origin coords, else host-country asylum coords
+    o_lat = o_lon = None
+    if "origin_lat" in out.columns and "origin_lon" in out.columns:
+        oo = out.dropna(subset=["origin_lat", "origin_lon"])
+        if not oo.empty:
+            o_lat = float(oo.iloc[0]["origin_lat"])
+            o_lon = float(oo.iloc[0]["origin_lon"])
+    if o_lat is None and "asylum_lat" in df.columns:
+        home = df[df["asylum_iso3"].astype(str).str.upper() == target_iso].dropna(
+            subset=["asylum_lat", "asylum_lon"]
+        )
+        if not home.empty:
+            o_lat = float(home.iloc[0]["asylum_lat"])
+            o_lon = float(home.iloc[0]["asylum_lon"])
+    hosts["origin_iso3"] = target_iso
+    hosts["origin_lat"] = o_lat
+    hosts["origin_lon"] = o_lon
+    return hosts
 
 
 def kpi_snapshot(df: pd.DataFrame, prev_df: pd.DataFrame | None = None) -> dict:

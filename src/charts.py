@@ -1264,19 +1264,151 @@ def hosts_composition_pie_map(
     return fmap
 
 
+def _curved_arc_points(
+    lat1: float,
+    lon1: float,
+    lat2: float,
+    lon2: float,
+    *,
+    segments: int = 48,
+    curvature: float = 0.28,
+    bend_sign: float = 1.0,
+) -> list[list[float]]:
+    """Quadratic Bezier arc (lat/lon) — curved corridor, not a straight line."""
+    mx = (lon1 + lon2) / 2.0
+    my = (lat1 + lat2) / 2.0
+    dx = lon2 - lon1
+    dy = lat2 - lat1
+    dist = math.hypot(dx, dy) or 1.0
+    # Perpendicular offset for the control point
+    px, py = -dy, dx
+    norm = math.hypot(px, py) or 1.0
+    cx = mx + bend_sign * (px / norm) * dist * curvature
+    cy = my + bend_sign * (py / norm) * dist * curvature
+    pts: list[list[float]] = []
+    for i in range(segments + 1):
+        t = i / segments
+        u = 1.0 - t
+        lon = u * u * lon1 + 2 * u * t * cx + t * t * lon2
+        lat = u * u * lat1 + 2 * u * t * cy + t * t * lat2
+        pts.append([lat, lon])
+    return pts
+
+
+def _bearing_deg(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Approximate screen-ish bearing for CSS rotate (0 = north / up)."""
+    return math.degrees(math.atan2(lon2 - lon1, lat2 - lat1))
+
+
+def _fmt_bubble_n(n: float) -> str:
+    v = float(n or 0)
+    if v >= 1_000_000:
+        return f"{v / 1_000_000:.1f}M".replace(".0M", "M")
+    if v >= 10_000:
+        return f"{v / 1_000:.0f}k"
+    if v >= 1_000:
+        return f"{v / 1_000:.1f}k".replace(".0k", "k")
+    return f"{v:,.0f}"
+
+
+def _add_national_outflow_arcs(
+    fmap: folium.Map,
+    outflows: pd.DataFrame,
+    lang: str,
+    origin_name: str,
+) -> None:
+    """Curved arrows from origin country to host REF+ASY totals (bubbles)."""
+    if outflows is None or outflows.empty:
+        return
+    d = outflows.dropna(subset=["asylum_lat", "asylum_lon", "origin_lat", "origin_lon"]).copy()
+    if d.empty:
+        return
+
+    max_total = float(d["total"].max() or 1.0)
+    host_name = "asylum_name_fr" if lang == "fr" else "asylum_name_en"
+    for i, row in enumerate(d.itertuples(index=False)):
+        total = float(getattr(row, "total", 0) or 0)
+        if total <= 0:
+            continue
+        o_lat = float(row.origin_lat)
+        o_lon = float(row.origin_lon)
+        a_lat = float(row.asylum_lat)
+        a_lon = float(row.asylum_lon)
+        bend = 1.0 if i % 2 == 0 else -1.0
+        # Slightly vary curvature so parallel corridors stay readable
+        curv = 0.22 + 0.06 * ((i % 3) / 2.0)
+        arc = _curved_arc_points(
+            o_lat, o_lon, a_lat, a_lon, curvature=curv, bend_sign=bend
+        )
+        weight = 2.0 + 4.0 * math.sqrt(total / max_total)
+        host_lbl = getattr(row, host_name, None) or getattr(row, "asylum_iso3", "")
+        tip = (
+            f"<b>{origin_name} → {host_lbl}</b><br>"
+            f"REF + ASY: {total:,.0f}"
+        )
+        folium.PolyLine(
+            locations=arc,
+            color=BLUE_PRIMARY,
+            weight=weight,
+            opacity=0.72,
+            tooltip=tip,
+        ).add_to(fmap)
+
+        # Arrow head near the end of the curve
+        if len(arc) >= 4:
+            p0, p1 = arc[-4], arc[-1]
+            deg = _bearing_deg(p0[0], p0[1], p1[0], p1[1])
+            tip_html = (
+                f'<div style="width:18px;height:18px;margin-left:-9px;margin-top:-9px;'
+                f'transform:rotate({deg:.0f}deg);'
+                f'color:{BLUE_PRIMARY};font-size:16px;line-height:18px;'
+                f'text-shadow:0 0 2px #fff;pointer-events:none;">▲</div>'
+            )
+            folium.Marker(
+                location=arc[-2],
+                icon=folium.DivIcon(html=tip_html, icon_size=(18, 18), icon_anchor=(0, 0)),
+            ).add_to(fmap)
+
+        # Number bubble on the host country
+        bubble_r = int(28 + 22 * math.sqrt(total / max_total))
+        bubble_r = max(28, min(bubble_r, 56))
+        num = _fmt_bubble_n(total)
+        bubble_html = (
+            f'<div style="width:{bubble_r}px;height:{bubble_r}px;margin-left:-{bubble_r // 2}px;'
+            f'margin-top:-{bubble_r // 2}px;border-radius:50%;'
+            f'background:rgba(0,114,188,0.78);border:2px solid #FFFFFF;'
+            f'box-shadow:0 1px 4px rgba(11,55,84,0.35);'
+            f'display:flex;align-items:center;justify-content:center;'
+            f'color:#FFFFFF;font-weight:700;font-size:{max(10, bubble_r // 4)}px;'
+            f'font-family:Lato,Arial,sans-serif;">{num}</div>'
+        )
+        folium.Marker(
+            location=[a_lat, a_lon],
+            icon=folium.DivIcon(
+                html=bubble_html, icon_size=(bubble_r, bubble_r), icon_anchor=(0, 0)
+            ),
+            tooltip=tip,
+            popup=folium.Popup(tip, max_width=260),
+        ).add_to(fmap)
+
+
 def country_composition_pie_map(
     composition_df: pd.DataFrame,
     lang: str,
     country_name: str,
     asylum_iso3: str,
+    outflows: pd.DataFrame | None = None,
 ) -> folium.Map:
     """
     Country-profile map: pie markers by admin unit (pop-type composition).
-    No legend, no summary panel — map and pies only.
-    `composition_df` from indicators.admin_composition_geo.
+    Optional curved outflows: REF+ASY of this nationality in neighbouring hosts.
+    No legend / summary panels.
     """
     d = composition_df.copy() if composition_df is not None else pd.DataFrame()
     d = d.dropna(subset=["lat", "lon"]) if not d.empty else d
+    flows = outflows.copy() if outflows is not None else pd.DataFrame()
+    if not flows.empty:
+        flows = flows.dropna(subset=["asylum_lat", "asylum_lon"])
 
     bounds = _country_bounds(asylum_iso3)
     if bounds is None and not d.empty:
@@ -1287,6 +1419,21 @@ def country_composition_pie_map(
         ]
     if bounds is None:
         bounds = [list(b) for b in _WCA_BOUNDS]
+
+    # Expand frame to include outflow hosts
+    if not flows.empty:
+        lats = [bounds[0][0], bounds[1][0]] + flows["asylum_lat"].astype(float).tolist()
+        lons = [bounds[0][1], bounds[1][1]] + flows["asylum_lon"].astype(float).tolist()
+        if "origin_lat" in flows.columns:
+            ol = flows["origin_lat"].dropna().astype(float)
+            oo = flows["origin_lon"].dropna().astype(float)
+            lats.extend(ol.tolist())
+            lons.extend(oo.tolist())
+        pad = 1.8
+        bounds = [
+            [min(lats) - pad, min(lons) - pad],
+            [max(lats) + pad, max(lons) + pad],
+        ]
 
     center_lat = (bounds[0][0] + bounds[1][0]) / 2.0
     center_lon = (bounds[0][1] + bounds[1][1]) / 2.0
@@ -1325,69 +1472,76 @@ def country_composition_pie_map(
         )
     )
     _add_country_focus_layer(fmap, asylum_iso3)
-    if d.empty:
+
+    # Outflow arcs under pies so pies stay on top
+    if not flows.empty:
+        _add_national_outflow_arcs(fmap, flows, lang, country_name)
+
+    if d.empty and flows.empty:
         _fit_map_to_bounds(fmap, bounds)
         return fmap
 
-    skip = {
-        "asylum_iso3",
-        "unit_name",
-        "total",
-        "lat",
-        "lon",
-        "geo_level",
-        "admin1",
-        "admin2",
-    }
-    ordered_cols = [c for c in _POP_ORDER if c in d.columns]
-    ordered_cols += [
-        c
-        for c in d.columns
-        if c not in skip
-        and c not in ordered_cols
-        and pd.api.types.is_numeric_dtype(d[c])
-    ]
-
-    max_total = float(d["total"].max() or 1.0)
-    for _, row in d.iterrows():
-        total = float(row.get("total") or 0)
-        if total <= 0:
-            continue
-        parts: list[tuple[float, str]] = []
-        hover_lines = [
-            f"<b>{row.get('unit_name') or country_name}</b>",
-            f"{_total_label(lang)}: {total:,.0f}",
+    if not d.empty:
+        skip = {
+            "asylum_iso3",
+            "unit_name",
+            "total",
+            "lat",
+            "lon",
+            "geo_level",
+            "admin1",
+            "admin2",
+        }
+        ordered_cols = [c for c in _POP_ORDER if c in d.columns]
+        ordered_cols += [
+            c
+            for c in d.columns
+            if c not in skip
+            and c not in ordered_cols
+            and pd.api.types.is_numeric_dtype(d[c])
         ]
-        for code in ordered_cols:
-            val = float(row.get(code) or 0)
-            if val <= 0:
+
+        max_total = float(d["total"].max() or 1.0)
+        for _, row in d.iterrows():
+            total = float(row.get("total") or 0)
+            if total <= 0:
                 continue
-            parts.append((val, pop_color(code)))
-            share = val / total
-            hover_lines.append(
-                f"{_pop_name(code, lang)}: {val:,.0f} ({share * 100:.1f}%)"
+            parts: list[tuple[float, str]] = []
+            hover_lines = [
+                f"<b>{row.get('unit_name') or country_name}</b>",
+                f"{_total_label(lang)}: {total:,.0f}",
+            ]
+            for code in ordered_cols:
+                val = float(row.get(code) or 0)
+                if val <= 0:
+                    continue
+                parts.append((val, pop_color(code)))
+                share = val / total
+                hover_lines.append(
+                    f"{_pop_name(code, lang)}: {val:,.0f} ({share * 100:.1f}%)"
+                )
+            if not parts:
+                continue
+            size = int(22 + 30 * math.sqrt(total / max_total))
+            size = max(22, min(size, 56))
+            svg = _svg_composition_pie(parts, size)
+            html = (
+                f'<div style="width:{size}px;height:{size}px;margin-left:-{size // 2}px;'
+                f'margin-top:-{size // 2}px;">{svg}</div>'
             )
-        if not parts:
-            continue
-        size = int(22 + 30 * math.sqrt(total / max_total))
-        size = max(22, min(size, 56))
-        svg = _svg_composition_pie(parts, size)
-        html = (
-            f'<div style="width:{size}px;height:{size}px;margin-left:-{size // 2}px;'
-            f'margin-top:-{size // 2}px;">{svg}</div>'
-        )
-        tooltip = folium.Tooltip("<br>".join(hover_lines), sticky=True)
-        popup = folium.Popup("<br>".join(hover_lines), max_width=280)
-        folium.Marker(
-            location=[float(row["lat"]), float(row["lon"])],
-            icon=folium.DivIcon(html=html, icon_size=(size, size), icon_anchor=(0, 0)),
-            tooltip=tooltip,
-            popup=popup,
-        ).add_to(fmap)
+            tooltip = folium.Tooltip("<br>".join(hover_lines), sticky=True)
+            popup = folium.Popup("<br>".join(hover_lines), max_width=280)
+            folium.Marker(
+                location=[float(row["lat"]), float(row["lon"])],
+                icon=folium.DivIcon(html=html, icon_size=(size, size), icon_anchor=(0, 0)),
+                tooltip=tooltip,
+                popup=popup,
+            ).add_to(fmap)
 
     # Prefer a tighter zoom for country profiles
     sw, ne = bounds
     fmap.fit_bounds(bounds, padding=(28, 28))
+    max_zoom = 7 if not flows.empty else 8
     js = f"""
     <script>
     (function() {{
@@ -1396,7 +1550,7 @@ def country_composition_pie_map(
         keys.forEach(function(k) {{
           var m = window[k];
           if (m && m.fitBounds && !m._countryFitted) {{
-            m.fitBounds([[{sw[0]}, {sw[1]}], [{ne[0]}, {ne[1]}]], {{padding: [28, 28], maxZoom: 8}});
+            m.fitBounds([[{sw[0]}, {sw[1]}], [{ne[0]}, {ne[1]}]], {{padding: [28, 28], maxZoom: {max_zoom}}});
             m._countryFitted = true;
           }}
         }});

@@ -69,6 +69,7 @@ admin2_stock = _indicators_mod.admin2_stock
 residence_map_points = _indicators_mod.residence_map_points
 admin_composition_geo = _indicators_mod.admin_composition_geo
 nationals_ref_asy_in_region = _indicators_mod.nationals_ref_asy_in_region
+nationals_ref_asy_by_host = _indicators_mod.nationals_ref_asy_by_host
 accommodation_share_ref_asy = _indicators_mod.accommodation_share_ref_asy
 accommodation_stock = _indicators_mod.accommodation_stock
 age_adult_detail = _indicators_mod.age_adult_detail
@@ -938,8 +939,15 @@ def main() -> None:
             composition_admin = admin_composition_geo(
                 country_df, geoloc, profile_iso, countries_df=countries
             )
+            outflows = nationals_ref_asy_by_host(
+                current,
+                origin_iso3=profile_iso,
+                wca_iso3=wca_iso3 or None,
+                origin_hcr3=origin_hcr,
+                exclude_same_country=True,
+            )
             st.markdown(f"**{t('country_pie_map', lang)}**")
-            if composition_admin.empty:
+            if composition_admin.empty and outflows.empty:
                 st.caption(
                     "Aucune coordonnée disponible pour ce pays (centroïde introuvable)."
                     if lang == "fr"
@@ -951,6 +959,7 @@ def main() -> None:
                     lang,
                     country_name,
                     profile_iso,
+                    outflows=outflows,
                 )
                 st_folium(
                     pie_country,
