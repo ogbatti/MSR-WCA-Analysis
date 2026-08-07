@@ -1360,7 +1360,7 @@ def country_composition_pie_map(
             val = float(row.get(code) or 0)
             if val <= 0:
                 continue
-            parts.append((val, _composition_color(code)))
+            parts.append((val, pop_color(code)))
             share = val / total
             hover_lines.append(
                 f"{_pop_name(code, lang)}: {val:,.0f} ({share * 100:.1f}%)"
