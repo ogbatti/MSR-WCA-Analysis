@@ -909,7 +909,6 @@ def main() -> None:
                 country_df, geoloc, profile_iso, countries_df=countries
             )
             st.markdown(f"**{t('country_pie_map', lang)}**")
-            st.caption(t("country_pie_map_help", lang))
             if composition_admin.empty:
                 st.caption(
                     "Aucune coordonnée disponible pour ce pays (centroïde introuvable)."
