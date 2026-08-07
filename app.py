@@ -925,7 +925,15 @@ def main() -> None:
             k2.metric(t("kpi_ref_asy", lang), _fmt_int(c_kpi.get("ref_asy")))
             k3.metric(t("kpi_idp", lang), _fmt_int(c_kpi.get("idp")))
             k4.metric(t("kpi_mom", lang), _fmt_pct(c_kpi.get("mom")))
-            k5.metric(t("kpi_nationals_abroad", lang), _fmt_int(nationals_abroad))
+            abroad_label = t("kpi_nationals_abroad", lang).format(country=country_name)
+            with k5:
+                st.markdown(
+                    f'<div class="kpi-card kpi-card-compact">'
+                    f'<div class="kpi-label">{html.escape(abroad_label)}</div>'
+                    f'<div class="kpi-value">{_fmt_int(nationals_abroad)}</div>'
+                    f"</div>",
+                    unsafe_allow_html=True,
+                )
 
             composition_admin = admin_composition_geo(
                 country_df, geoloc, profile_iso, countries_df=countries

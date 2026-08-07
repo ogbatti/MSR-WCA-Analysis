@@ -219,6 +219,9 @@ APP_CSS = """
     font-weight: 600;
     margin-bottom: 0.3rem;
     line-height: 1.25;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
   }
   .kpi-card .kpi-value {
     color: var(--unhcr-text);
@@ -227,6 +230,22 @@ APP_CSS = """
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
     letter-spacing: -0.01em;
+  }
+  .kpi-card.kpi-card-compact {
+    padding: 0.15rem 0.2rem 0.35rem 0.55rem;
+    background: transparent;
+    border-left: none;
+    border-radius: 0;
+  }
+  .kpi-card.kpi-card-compact .kpi-label {
+    font-size: 0.78rem;
+    color: rgba(49, 51, 63, 0.6);
+    font-weight: 500;
+  }
+  .kpi-card.kpi-card-compact .kpi-value {
+    font-size: 1.75rem;
+    color: rgb(49, 51, 63);
+    font-weight: 600;
   }
   .kpi-card .kpi-delta {
     margin-top: 0.2rem;
