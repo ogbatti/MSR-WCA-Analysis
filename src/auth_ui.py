@@ -64,12 +64,17 @@ def _login_lang_bar(lang: str) -> str:
     """Compact language dropdown on the login canvas."""
     if "lang" not in st.session_state:
         st.session_state.lang = lang or "fr"
-    st.selectbox(
+    # Distinct widget key from the post-login sidebar selector (avoids DuplicateElementKey)
+    if "login_lang" not in st.session_state:
+        st.session_state.login_lang = st.session_state.lang
+    choice = st.selectbox(
         t("language", st.session_state.lang),
         options=["fr", "en"],
         format_func=lambda c: "Français" if c == "fr" else "English",
-        key="lang",
+        key="login_lang",
     )
+    if choice != st.session_state.lang:
+        st.session_state.lang = choice
     return st.session_state.lang
 
 

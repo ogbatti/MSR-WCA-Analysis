@@ -478,8 +478,12 @@ stateless persons, etc.), trends, geography and scenario projections.
 def main() -> None:
     _inject_brand()
 
+    if "lang" not in st.session_state:
+        st.session_state.lang = "fr"
+
+    # Auth first so the login page owns the language widget (no duplicate key)
+    auth_user = render_login_gate(st.session_state.lang)
     lang = _language_selector()
-    auth_user = render_login_gate(lang)
 
     if LOGO_PATH.exists():
         st.sidebar.image(str(LOGO_PATH), width=160)
