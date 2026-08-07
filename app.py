@@ -189,6 +189,77 @@ def _inject_brand() -> None:
     st.markdown(APP_CSS, unsafe_allow_html=True)
 
 
+def _render_expandable_folium(
+    fmap,
+    *,
+    key: str,
+    lang: str,
+    height: int = 520,
+    large_height: int = 820,
+    center: tuple[float, float] | None = None,
+    zoom: int | None = None,
+) -> None:
+    """Show a Folium map with an Expand button opening a larger dialog."""
+    _, btn = st.columns([5, 1])
+    with btn:
+        open_big = st.button(
+            t("map_expand", lang),
+            key=f"{key}__expand",
+            use_container_width=True,
+        )
+
+    common: dict = {
+        "returned_objects": [],
+        "use_container_width": True,
+        "wrap_longitude": False,
+    }
+    if center is not None:
+        common["center"] = center
+    if zoom is not None:
+        common["zoom"] = zoom
+
+    st_folium(fmap, height=height, key=key, **common)
+
+    if open_big:
+
+        @st.dialog(t("map_expand_title", lang), width="large")
+        def _big_map() -> None:
+            st_folium(fmap, height=large_height, key=f"{key}__dlg", **common)
+
+        _big_map()
+
+
+def _render_expandable_plotly(
+    fig,
+    *,
+    key: str,
+    lang: str,
+    large_height: int = 780,
+) -> None:
+    """Show a Plotly map/chart with an Expand button opening a larger dialog."""
+    import plotly.graph_objects as go
+
+    _, btn = st.columns([5, 1])
+    with btn:
+        open_big = st.button(
+            t("map_expand", lang),
+            key=f"{key}__expand",
+            use_container_width=True,
+        )
+
+    st.plotly_chart(fig, width="stretch", key=key)
+
+    if open_big:
+
+        @st.dialog(t("map_expand_title", lang), width="large")
+        def _big_chart() -> None:
+            big = go.Figure(fig)
+            big.update_layout(height=large_height)
+            st.plotly_chart(big, width="stretch", key=f"{key}__dlg")
+
+        _big_chart()
+
+
 def _render_header(lang: str) -> None:
     logo = _logo_data_uri()
     kicker = "REGIONAL BUREAU FOR WEST AND CENTRAL AFRICA - DIMA"
@@ -863,23 +934,26 @@ def main() -> None:
         pie_map = hosts_composition_pie_map(
             composition, lang, wca_iso3=wca_iso3 or None
         )
-        st_folium(
+        _render_expandable_folium(
             pie_map,
+            key="wca_composition_map",
+            lang=lang,
+            height=540,
             center=(8.0, 5.0),
             zoom=4,
-            height=540,
-            returned_objects=[],
-            key="wca_composition_map",
-            use_container_width=True,
-            wrap_longitude=False,
         )
 
         with st.expander(t("choropleth", lang)):
-            st.plotly_chart(
+            _render_expandable_plotly(
                 choropleth_hosts(breakdown, lang, wca_iso3=wca_iso3 or None),
-                width="stretch",
+                key="wca_choropleth",
+                lang=lang,
             )
-        st.plotly_chart(corridor_map(flows, lang), width="stretch")
+        _render_expandable_plotly(
+            corridor_map(flows, lang),
+            key="wca_corridors",
+            lang=lang,
+        )
 
     with tab_map["territory"]:
         profile_options = host_options["asylum_iso3"].tolist()
@@ -961,22 +1035,22 @@ def main() -> None:
                     profile_iso,
                     outflows=outflows,
                 )
-                st_folium(
+                _render_expandable_folium(
                     pie_country,
-                    height=520,
-                    returned_objects=[],
                     key=f"country_pie_map_{profile_iso}",
-                    use_container_width=True,
-                    wrap_longitude=False,
+                    lang=lang,
+                    height=520,
+                    large_height=860,
                 )
 
             points = residence_map_points(
                 country_df, geoloc, profile_iso, countries_df=countries
             )
             with st.expander(t("residence_map", lang), expanded=False):
-                st.plotly_chart(
+                _render_expandable_plotly(
                     admin2_residence_map(points, lang, country_name),
-                    width="stretch",
+                    key=f"residence_map_{profile_iso}",
+                    lang=lang,
                 )
                 if points.empty:
                     st.caption(

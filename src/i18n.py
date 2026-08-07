@@ -50,6 +50,8 @@ STRINGS = {
         "fr": "Camemberts proportionnels aux effectifs par zone (Admin2 si disponible, sinon Admin1).",
         "en": "Pie charts sized by caseload per area (Admin2 when available, otherwise Admin1).",
     },
+    "map_expand": {"fr": "Agrandir", "en": "Expand"},
+    "map_expand_title": {"fr": "Carte agrandie", "en": "Expanded map"},
     "shelter_psn": {"fr": "Hébergement & PSN", "en": "Shelter & PSN"},
     "admin": {"fr": "Admin1 / Admin2", "en": "Admin1 / Admin2"},
     "reports": {"fr": "Rapports", "en": "Reports"},
