@@ -71,6 +71,10 @@ STRINGS = {
     "kpi_total": {"fr": "Population totale", "en": "Total population"},
     "kpi_ref_asy": {"fr": "REF + ASY", "en": "REF + ASY"},
     "kpi_nationals_abroad": {
+        "fr": "Réfugiés {nationality} en AOC",
+        "en": "{nationality} refugees in WCA",
+    },
+    "kpi_nationals_abroad_fallback": {
         "fr": "Réfugiés du {country} en AOC",
         "en": "Refugees from {country} in WCA",
     },

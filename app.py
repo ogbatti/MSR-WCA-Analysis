@@ -108,7 +108,7 @@ from src.narratives import (
     build_trend_narrative,
     pop_label,
 )
-from src.reference_data import format_month_label
+from src.reference_data import format_month_label, nationality_adjective
 from src.theme import APP_CSS
 from src.auth_ui import render_admin_users_panel, render_auth_sidebar, render_login_gate
 from streamlit_folium import st_folium
@@ -1007,7 +1007,13 @@ def main() -> None:
             k2.metric(t("kpi_ref_asy", lang), _fmt_int(c_kpi.get("ref_asy")))
             k3.metric(t("kpi_idp", lang), _fmt_int(c_kpi.get("idp")))
             k4.metric(t("kpi_mom", lang), _fmt_pct(c_kpi.get("mom")))
-            abroad_label = t("kpi_nationals_abroad", lang).format(country=country_name)
+            nat = nationality_adjective(profile_iso, lang)
+            if nat:
+                abroad_label = t("kpi_nationals_abroad", lang).format(nationality=nat)
+            else:
+                abroad_label = t("kpi_nationals_abroad_fallback", lang).format(
+                    country=country_name
+                )
             with k5:
                 st.markdown(
                     f'<div class="kpi-card kpi-card-compact">'

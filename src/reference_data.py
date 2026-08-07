@@ -205,6 +205,46 @@ def format_month_label(year_month: str, lang: str) -> str:
         return year_month
 
 
+# Plural nationality adjectives for KPI labels (ISO3 → fr / en).
+# French forms match “Réfugiés {adj} en AOC” (lowercase).
+NATIONALITY_ADJECTIVES: dict[str, dict[str, str]] = {
+    "BEN": {"fr": "béninois", "en": "Beninese"},
+    "BFA": {"fr": "burkinabè", "en": "Burkinabe"},
+    "CPV": {"fr": "cap-verdiens", "en": "Cabo Verdean"},
+    "CMR": {"fr": "camerounais", "en": "Cameroonian"},
+    "CAF": {"fr": "centrafricains", "en": "Central African"},
+    "TCD": {"fr": "tchadiens", "en": "Chadian"},
+    "COG": {"fr": "congolais", "en": "Congolese"},
+    "COD": {"fr": "congolais", "en": "Congolese"},
+    "CIV": {"fr": "ivoiriens", "en": "Ivorian"},
+    "GNQ": {"fr": "équato-guinéens", "en": "Equatorial Guinean"},
+    "GAB": {"fr": "gabonais", "en": "Gabonese"},
+    "GMB": {"fr": "gambiens", "en": "Gambian"},
+    "GHA": {"fr": "ghanéens", "en": "Ghanaian"},
+    "GIN": {"fr": "guinéens", "en": "Guinean"},
+    "GNB": {"fr": "bissau-guinéens", "en": "Bissau-Guinean"},
+    "LBR": {"fr": "libériens", "en": "Liberian"},
+    "MLI": {"fr": "maliens", "en": "Malian"},
+    "MRT": {"fr": "mauritaniens", "en": "Mauritanian"},
+    "NER": {"fr": "nigériens", "en": "Nigerien"},
+    "NGA": {"fr": "nigérians", "en": "Nigerian"},
+    "STP": {"fr": "santoméens", "en": "Sao Tomean"},
+    "SEN": {"fr": "sénégalais", "en": "Senegalese"},
+    "SLE": {"fr": "sierra-léonais", "en": "Sierra Leonean"},
+    "TGO": {"fr": "togolais", "en": "Togolese"},
+}
+
+
+def nationality_adjective(iso3: str, lang: str) -> str | None:
+    """Return plural nationality adjective for a country ISO3, or None if unknown."""
+    if not iso3:
+        return None
+    row = NATIONALITY_ADJECTIVES.get(str(iso3).strip().upper())
+    if not row:
+        return None
+    return row.get("fr" if lang == "fr" else "en")
+
+
 def year_month_from_label(label: str, lang: str) -> str | None:
     """Reverse of format_month_label."""
     try:
