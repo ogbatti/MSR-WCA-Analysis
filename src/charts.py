@@ -132,6 +132,65 @@ def _fit_map_to_bounds(fmap: folium.Map, bounds: list[list[float]]) -> None:
     fmap.get_root().html.add_child(folium.Element(js))
 
 
+def _country_bounds(iso3: str, pad: float = 1.2) -> list[list[float]] | None:
+    """Southwest / northeast bounds for a single country (ISO3)."""
+    geo = _world_countries_geojson()
+    if not geo or not iso3:
+        return None
+    target = str(iso3).upper()
+    lats: list[float] = []
+    lons: list[float] = []
+    for feat in geo.get("features", []):
+        if _feature_iso3(feat) != target:
+            continue
+        geom = feat.get("geometry") or {}
+        _coords_extents(geom.get("coordinates"), lats, lons)
+    if not lats or not lons:
+        return None
+    return [
+        [min(lats) - pad, min(lons) - pad],
+        [max(lats) + pad, max(lons) + pad],
+    ]
+
+
+def _add_country_focus_layer(fmap: folium.Map, asylum_iso3: str) -> None:
+    """Highlight one host country; soft-grey neighbors (no legend)."""
+    geo = _world_countries_geojson()
+    if not geo or not asylum_iso3:
+        return
+    target = str(asylum_iso3).upper()
+
+    def style_fn(feature: dict) -> dict:
+        iso = _feature_iso3(feature)
+        if iso == target:
+            return {
+                "fillColor": "#FFFFFF",
+                "color": BLUE_PRIMARY,
+                "weight": 2.0,
+                "fillOpacity": 0.15,
+                "opacity": 1.0,
+            }
+        return {
+            "fillColor": "#D6E8F4",
+            "color": GREY_03,
+            "weight": 0.5,
+            "fillOpacity": 0.55,
+            "opacity": 0.75,
+        }
+
+    GeoJson(
+        geo,
+        name="Country focus",
+        style_function=style_fn,
+        tooltip=GeoJsonTooltip(
+            fields=["name"],
+            aliases=[""],
+            labels=False,
+            sticky=False,
+        ),
+    ).add_to(fmap)
+
+
 def _add_wca_region_layer(fmap: folium.Map, wca_iso3: list[str] | None) -> None:
     """Highlight WCA countries and grey out the rest of the world."""
     geo = _world_countries_geojson()
@@ -1200,6 +1259,152 @@ def hosts_composition_pie_map(
         """
     )
     fmap.get_root().html.add_child(legend)
+    return fmap
+
+
+def country_composition_pie_map(
+    composition_df: pd.DataFrame,
+    lang: str,
+    country_name: str,
+    asylum_iso3: str,
+) -> folium.Map:
+    """
+    Country-profile map: pie markers by admin unit (pop-type composition).
+    No legend, no summary panel — map and pies only.
+    `composition_df` from indicators.admin_composition_geo.
+    """
+    d = composition_df.copy() if composition_df is not None else pd.DataFrame()
+    d = d.dropna(subset=["lat", "lon"]) if not d.empty else d
+
+    bounds = _country_bounds(asylum_iso3)
+    if bounds is None and not d.empty:
+        pad = 1.5
+        bounds = [
+            [float(d["lat"].min()) - pad, float(d["lon"].min()) - pad],
+            [float(d["lat"].max()) + pad, float(d["lon"].max()) + pad],
+        ]
+    if bounds is None:
+        bounds = [list(b) for b in _WCA_BOUNDS]
+
+    center_lat = (bounds[0][0] + bounds[1][0]) / 2.0
+    center_lon = (bounds[0][1] + bounds[1][1]) / 2.0
+    max_bounds = [
+        [bounds[0][0] - 4, bounds[0][1] - 4],
+        [bounds[1][0] + 4, bounds[1][1] + 4],
+    ]
+
+    fmap = folium.Map(
+        location=[center_lat, center_lon],
+        zoom_start=6,
+        tiles="CartoDB positron",
+        control_scale=True,
+        max_bounds=True,
+        min_zoom=4,
+        max_zoom=11,
+        world_copy_jump=False,
+    )
+    fmap.options["maxBounds"] = max_bounds
+    fmap.get_root().header.add_child(
+        folium.Element(
+            """
+            <style>
+              .leaflet-container path:focus,
+              .leaflet-container path:focus-visible,
+              .leaflet-interactive:focus,
+              .leaflet-interactive:focus-visible,
+              .leaflet-marker-icon:focus,
+              .leaflet-marker-icon:focus-visible,
+              .leaflet-marker-icon:active {
+                outline: none !important;
+                box-shadow: none !important;
+              }
+            </style>
+            """
+        )
+    )
+    _add_country_focus_layer(fmap, asylum_iso3)
+    if d.empty:
+        _fit_map_to_bounds(fmap, bounds)
+        return fmap
+
+    skip = {
+        "asylum_iso3",
+        "unit_name",
+        "total",
+        "lat",
+        "lon",
+        "geo_level",
+        "admin1",
+        "admin2",
+    }
+    ordered_cols = [c for c in _POP_ORDER if c in d.columns]
+    ordered_cols += [
+        c
+        for c in d.columns
+        if c not in skip
+        and c not in ordered_cols
+        and pd.api.types.is_numeric_dtype(d[c])
+    ]
+
+    max_total = float(d["total"].max() or 1.0)
+    for _, row in d.iterrows():
+        total = float(row.get("total") or 0)
+        if total <= 0:
+            continue
+        parts: list[tuple[float, str]] = []
+        hover_lines = [
+            f"<b>{row.get('unit_name') or country_name}</b>",
+            f"{_total_label(lang)}: {total:,.0f}",
+        ]
+        for code in ordered_cols:
+            val = float(row.get(code) or 0)
+            if val <= 0:
+                continue
+            parts.append((val, _composition_color(code)))
+            share = val / total
+            hover_lines.append(
+                f"{_pop_name(code, lang)}: {val:,.0f} ({share * 100:.1f}%)"
+            )
+        if not parts:
+            continue
+        size = int(22 + 30 * math.sqrt(total / max_total))
+        size = max(22, min(size, 56))
+        svg = _svg_composition_pie(parts, size)
+        html = (
+            f'<div style="width:{size}px;height:{size}px;margin-left:-{size // 2}px;'
+            f'margin-top:-{size // 2}px;">{svg}</div>'
+        )
+        tooltip = folium.Tooltip("<br>".join(hover_lines), sticky=True)
+        popup = folium.Popup("<br>".join(hover_lines), max_width=280)
+        folium.Marker(
+            location=[float(row["lat"]), float(row["lon"])],
+            icon=folium.DivIcon(html=html, icon_size=(size, size), icon_anchor=(0, 0)),
+            tooltip=tooltip,
+            popup=popup,
+        ).add_to(fmap)
+
+    # Prefer a tighter zoom for country profiles
+    sw, ne = bounds
+    fmap.fit_bounds(bounds, padding=(28, 28))
+    js = f"""
+    <script>
+    (function() {{
+      function fitOnce() {{
+        var keys = Object.keys(window).filter(k => k.startsWith('map_'));
+        keys.forEach(function(k) {{
+          var m = window[k];
+          if (m && m.fitBounds && !m._countryFitted) {{
+            m.fitBounds([[{sw[0]}, {sw[1]}], [{ne[0]}, {ne[1]}]], {{padding: [28, 28], maxZoom: 8}});
+            m._countryFitted = true;
+          }}
+        }});
+      }}
+      setTimeout(fitOnce, 80);
+      setTimeout(fitOnce, 400);
+    }})();
+    </script>
+    """
+    fmap.get_root().html.add_child(folium.Element(js))
     return fmap
 
 

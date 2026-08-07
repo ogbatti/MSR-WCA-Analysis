@@ -49,6 +49,7 @@ accommodation_share_pie = _charts_mod.accommodation_share_pie
 admin2_residence_map = _charts_mod.admin2_residence_map
 adult_age_detail_bar = _charts_mod.adult_age_detail_bar
 choropleth_hosts = _charts_mod.choropleth_hosts
+country_composition_pie_map = _charts_mod.country_composition_pie_map
 corridor_map = _charts_mod.corridor_map
 forecast_lines = _charts_mod.forecast_lines
 hosts_composition_pie_map = _charts_mod.hosts_composition_pie_map
@@ -66,6 +67,7 @@ admin1_map_points = _indicators_mod.admin1_map_points
 admin2_map_points = _indicators_mod.admin2_map_points
 admin2_stock = _indicators_mod.admin2_stock
 residence_map_points = _indicators_mod.residence_map_points
+admin_composition_geo = _indicators_mod.admin_composition_geo
 accommodation_share_ref_asy = _indicators_mod.accommodation_share_ref_asy
 accommodation_stock = _indicators_mod.accommodation_stock
 age_adult_detail = _indicators_mod.age_adult_detail
@@ -903,38 +905,66 @@ def main() -> None:
             k3.metric(t("kpi_idp", lang), _fmt_int(c_kpi.get("idp")))
             k4.metric(t("kpi_mom", lang), _fmt_pct(c_kpi.get("mom")))
 
-            points = residence_map_points(
+            composition_admin = admin_composition_geo(
                 country_df, geoloc, profile_iso, countries_df=countries
             )
-            st.plotly_chart(
-                admin2_residence_map(points, lang, country_name),
-                width="stretch",
-            )
-            if points.empty:
+            st.markdown(f"**{t('country_pie_map', lang)}**")
+            st.caption(t("country_pie_map_help", lang))
+            if composition_admin.empty:
                 st.caption(
                     "Aucune coordonnée disponible pour ce pays (centroïde introuvable)."
                     if lang == "fr"
                     else "No coordinates available for this country (centroid not found)."
                 )
-            elif "geo_level" in points.columns:
-                levels = set(points["geo_level"].dropna().astype(str))
-                if levels == {"country"}:
+            else:
+                pie_country = country_composition_pie_map(
+                    composition_admin,
+                    lang,
+                    country_name,
+                    profile_iso,
+                )
+                st_folium(
+                    pie_country,
+                    height=520,
+                    returned_objects=[],
+                    key=f"country_pie_map_{profile_iso}",
+                    use_container_width=True,
+                    wrap_longitude=False,
+                )
+                if "geo_level" in composition_admin.columns:
+                    levels = set(composition_admin["geo_level"].dropna().astype(str))
+                    if levels == {"country"}:
+                        st.caption(
+                            "Localisation au centroïde du pays (Admin1/Admin2 non renseignés)."
+                            if lang == "fr"
+                            else "Located at country centroid (Admin1/Admin2 not reported)."
+                        )
+                    elif "admin2" in levels:
+                        st.caption(
+                            "Niveau géographique : Admin2 (lorsqu'il est renseigné)."
+                            if lang == "fr"
+                            else "Geographic level: Admin2 (when reported)."
+                        )
+                    elif "admin1" in levels:
+                        st.caption(
+                            "Niveau géographique : Admin1 (Admin2 / Admin3 non disponibles)."
+                            if lang == "fr"
+                            else "Geographic level: Admin1 (Admin2 / Admin3 not available)."
+                        )
+
+            points = residence_map_points(
+                country_df, geoloc, profile_iso, countries_df=countries
+            )
+            with st.expander(t("residence_map", lang), expanded=False):
+                st.plotly_chart(
+                    admin2_residence_map(points, lang, country_name),
+                    width="stretch",
+                )
+                if points.empty:
                     st.caption(
-                        "Localisation au centroïde du pays (Admin1/Admin2 non renseignés)."
+                        "Aucune coordonnée disponible pour ce pays (centroïde introuvable)."
                         if lang == "fr"
-                        else "Located at country centroid (Admin1/Admin2 not reported)."
-                    )
-                elif "admin2" in levels:
-                    st.caption(
-                        "Niveau géographique : Admin2 (lorsqu'il est renseigné)."
-                        if lang == "fr"
-                        else "Geographic level: Admin2 (when reported)."
-                    )
-                elif "admin1" in levels:
-                    st.caption(
-                        "Niveau géographique : Admin1 (Admin2 non renseigné)."
-                        if lang == "fr"
-                        else "Geographic level: Admin1 (Admin2 not reported)."
+                        else "No coordinates available for this country (centroid not found)."
                     )
 
             c_by_type = (

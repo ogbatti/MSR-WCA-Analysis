@@ -592,9 +592,8 @@ def _admin_centroids(geo: pd.DataFrame, level: str, name_col: str) -> pd.DataFra
     """
     Build name → lat/lon lookup for an admin level.
 
-    Prefer rows with level == admin1/admin2. If those are absent (e.g. Chad only
-    has admin3 rows), derive centroids from finer rows that still carry admin1_name /
-    admin2_name.
+    Prefer rows with level == admin1/admin2. Fill missing names from finer rows
+    that still carry admin1_name / admin2_name (e.g. Admin3-only geoloc).
     """
     empty = pd.DataFrame(columns=[name_col, "latitude", "longitude"])
     if geo is None or geo.empty or name_col not in geo.columns:
@@ -610,7 +609,9 @@ def _admin_centroids(geo: pd.DataFrame, level: str, name_col: str) -> pd.DataFra
     if "level" in base.columns:
         exact = base[base["level"] == level]
         if not exact.empty:
-            base = exact
+            have = set(exact[name_col].astype(str).str.strip().str.lower())
+            extras = base[~base[name_col].astype(str).str.strip().str.lower().isin(have)]
+            base = pd.concat([exact, extras], ignore_index=True) if not extras.empty else exact
 
     return (
         base.groupby(name_col, as_index=False)
@@ -730,7 +731,9 @@ def residence_map_points(
 ) -> pd.DataFrame:
     """
     Residence map points with cascade:
-    Admin2 (if filled) → Admin1 (if filled) → whole country.
+    Admin2 (if filled and geocodable) → Admin1 (if filled) → whole country.
+
+    Countries without usable Admin2 / Admin3 coordinates fall back to Admin1.
     """
     if pop_df.empty:
         return pd.DataFrame()
@@ -751,6 +754,10 @@ def residence_map_points(
             geo = geo[geo["iso3"].astype(str).str.upper() == str(asylum_iso3).upper()]
         g2 = _admin_centroids(geo, "admin2", "admin2_name")
         g1 = _admin_centroids(geo, "admin1", "admin1_name")
+        # No Admin2 geocode available (e.g. only Admin3/Admin1 in geoloc) → Admin1
+        if g2.empty and has_admin1:
+            return admin1_map_points(pop_df, geoloc_df, asylum_iso3, countries_df)
+
         country_xy = _country_centroid(focus, geoloc_df, asylum_iso3, countries_df)
         country_lat = country_xy[0] if country_xy else None
         country_lon = country_xy[1] if country_xy else None
@@ -763,14 +770,24 @@ def residence_map_points(
             group_cols.insert(1, "coa_admin1")
         by_a2 = subset.groupby(group_cols, as_index=False, dropna=False)["total"].sum()
         rows: list[dict] = []
+        matched_admin2 = 0
+        country_fallback = 0
         for _, r in by_a2.iterrows():
             xy = _match_admin_centroid(g2, "admin2_name", r["coa_admin2"])
+            level = "admin2"
             if xy is None:
                 xy = _match_admin_centroid(g1, "admin1_name", r.get("coa_admin1"))
+                level = "admin1" if xy is not None else "country"
             if xy is not None:
                 lat, lon = xy
+                if level == "admin2":
+                    matched_admin2 += 1
+                elif level == "country":
+                    country_fallback += 1
             elif country_lat is not None:
                 lat, lon = country_lat, country_lon
+                level = "country"
+                country_fallback += 1
             else:
                 continue
             rows.append(
@@ -782,13 +799,15 @@ def residence_map_points(
                     "total": r["total"],
                     "lat": lat,
                     "lon": lon,
-                    # Aggregation level chosen by cascade (not geocode match quality)
-                    "geo_level": "admin2",
+                    "geo_level": level,
                 }
             )
+        n = len(rows)
+        # Prefer Admin1 when Admin2 barely geocodes (most points piled on country centroid)
+        if has_admin1 and (matched_admin2 == 0 or (n > 0 and country_fallback / n >= 0.6)):
+            return admin1_map_points(pop_df, geoloc_df, asylum_iso3, countries_df)
         if rows:
             return pd.DataFrame(rows).sort_values("total", ascending=False)
-        # Admin2 names present but no geocode → try Admin1 / country
         if has_admin1:
             return admin1_map_points(pop_df, geoloc_df, asylum_iso3, countries_df)
 
@@ -815,6 +834,68 @@ def residence_map_points(
             }
         )
     return pd.DataFrame(rows).sort_values("total", ascending=False) if rows else pd.DataFrame()
+
+
+def admin_composition_geo(
+    pop_df: pd.DataFrame,
+    geoloc_df: pd.DataFrame,
+    asylum_iso3: str,
+    countries_df: pd.DataFrame | None = None,
+) -> pd.DataFrame:
+    """
+    One row per residence unit (Admin2 if usable, else Admin1, else country)
+    with lat/lon, unit_name, geo_level, total, and one column per pop_code.
+
+    Used for country-profile composition pie markers.
+    """
+    points = residence_map_points(pop_df, geoloc_df, asylum_iso3, countries_df)
+    if points.empty:
+        return pd.DataFrame()
+
+    levels = set(points["geo_level"].dropna().astype(str))
+    if "admin2" in levels:
+        unit_col = "admin2"
+        geo_level = "admin2"
+    elif "admin1" in levels:
+        unit_col = "admin1"
+        geo_level = "admin1"
+    else:
+        unit_col = None
+        geo_level = "country"
+
+    d = points.copy()
+    if unit_col and unit_col in d.columns:
+        d["unit_name"] = d[unit_col].fillna("").astype(str).str.strip()
+        d = d[d["unit_name"] != ""]
+    else:
+        d["unit_name"] = str(asylum_iso3)
+
+    if d.empty:
+        return pd.DataFrame()
+
+    # Representative lat/lon per unit (prefer non-country matches when mixed)
+    coords = (
+        d.groupby("unit_name", as_index=False)
+        .agg(lat=("lat", "mean"), lon=("lon", "mean"))
+    )
+    pivot = (
+        d.groupby(["unit_name", "pop_code"], as_index=False)["total"]
+        .sum()
+        .pivot_table(
+            index="unit_name",
+            columns="pop_code",
+            values="total",
+            aggfunc="sum",
+            fill_value=0.0,
+        )
+        .reset_index()
+    )
+    pop_cols = [c for c in pivot.columns if c != "unit_name"]
+    pivot["total"] = pivot[pop_cols].sum(axis=1)
+    pivot = pivot.merge(coords, on="unit_name", how="left")
+    pivot["asylum_iso3"] = asylum_iso3
+    pivot["geo_level"] = geo_level
+    return pivot.sort_values("total", ascending=False)
 
 
 def admin2_map_points(

@@ -42,6 +42,14 @@ STRINGS = {
         "fr": "Carte des zones de résidence (Admin2 → Admin1 → pays)",
         "en": "Residence areas map (Admin2 → Admin1 → country)",
     },
+    "country_pie_map": {
+        "fr": "Composition par type de population (zones de résidence)",
+        "en": "Composition by population type (residence areas)",
+    },
+    "country_pie_map_help": {
+        "fr": "Camemberts proportionnels aux effectifs par zone (Admin2 si disponible, sinon Admin1).",
+        "en": "Pie charts sized by caseload per area (Admin2 when available, otherwise Admin1).",
+    },
     "shelter_psn": {"fr": "Hébergement & PSN", "en": "Shelter & PSN"},
     "admin": {"fr": "Admin1 / Admin2", "en": "Admin1 / Admin2"},
     "reports": {"fr": "Rapports", "en": "Reports"},
