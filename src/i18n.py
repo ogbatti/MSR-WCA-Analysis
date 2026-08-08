@@ -260,6 +260,14 @@ STRINGS = {
         "fr": "Créez des comptes sur invitation. Aucune inscription publique. Vous pouvez envoyer une notification e-mail à la création.",
         "en": "Create invitation-only accounts. No public registration. You can send an email notification on creation.",
     },
+    "auth_store_remote_ok": {
+        "fr": "Stockage durable actif (GitHub) — les comptes survivent aux redéploiements Cloud.",
+        "en": "Durable store active (GitHub) — accounts survive Cloud redeploys.",
+    },
+    "auth_store_remote_missing": {
+        "fr": "Stockage durable non configuré (AUTH_GITHUB_*). Sur Streamlit Cloud, les comptes peuvent être effacés au redéploiement.",
+        "en": "Durable store not configured (AUTH_GITHUB_*). On Streamlit Cloud, accounts may be wiped on redeploy.",
+    },
     "auth_active": {"fr": "Actif", "en": "Active"},
     "auth_inactive": {"fr": "Inactif", "en": "Inactive"},
     "auth_activate": {"fr": "Activer", "en": "Activate"},

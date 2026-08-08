@@ -304,6 +304,10 @@ def render_admin_users_panel(lang: str, user: auth_mod.AuthUser | None) -> None:
     st.markdown(f"### {t('auth_admin_title', lang)}")
     st.caption(t("auth_admin_help", lang))
     st.caption(t("auth_notify_locked_help", lang))
+    if auth_mod.remote_auth_configured():
+        st.caption(t("auth_store_remote_ok", lang))
+    else:
+        st.caption(t("auth_store_remote_missing", lang))
 
     with st.form("auth_invite_form"):
         c1, c2 = st.columns(2)

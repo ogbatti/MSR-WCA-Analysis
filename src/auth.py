@@ -1,11 +1,17 @@
 """Invitation-based local authentication (no public sign-up).
 
-Users are created by an admin. Passwords are stored as bcrypt hashes in
-`data/auth/users.json` (gitignored). Optional seed from Streamlit secrets /
-environment for bootstrap and Cloud deploy.
+Users are created by an admin. Passwords are stored as bcrypt hashes.
+
+Primary store: ``data/auth/users.json`` (gitignored).
+Durable store (Streamlit Cloud): optional GitHub private file via
+``AUTH_GITHUB_TOKEN`` / ``AUTH_GITHUB_REPO`` / ``AUTH_GITHUB_PATH``.
+
+Optional seed from Streamlit secrets ``auth.users.*`` and bootstrap admin
+from ``AUTH_ADMIN_*``.
 """
 from __future__ import annotations
 
+import base64
 import json
 import re
 import secrets
@@ -15,6 +21,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 import bcrypt
+import requests
 
 from src.config import ROOT, _setting
 
@@ -23,6 +30,7 @@ SESSION_USER_KEY = "auth_user"
 SESSION_AUTH_KEY = "auth_authenticated"
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+_REMOTE_SHA: str | None = None
 
 
 @dataclass
@@ -90,20 +98,124 @@ def _empty_store() -> dict[str, Any]:
     return {"version": 1, "users": {}}
 
 
+def _normalize_store(data: Any) -> dict[str, Any]:
+    if not isinstance(data, dict):
+        return _empty_store()
+    data.setdefault("version", 1)
+    data.setdefault("users", {})
+    if not isinstance(data["users"], dict):
+        data["users"] = {}
+    return data
+
+
 def _read_file_store() -> dict[str, Any]:
     if not USERS_PATH.exists():
         return _empty_store()
     try:
         data = json.loads(USERS_PATH.read_text(encoding="utf-8"))
-        if not isinstance(data, dict):
-            return _empty_store()
-        data.setdefault("version", 1)
-        data.setdefault("users", {})
-        if not isinstance(data["users"], dict):
-            data["users"] = {}
-        return data
+        return _normalize_store(data)
     except Exception:  # noqa: BLE001
         return _empty_store()
+
+
+def _write_file_store(store: dict[str, Any]) -> None:
+    USERS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    tmp = USERS_PATH.with_suffix(".tmp")
+    tmp.write_text(
+        json.dumps(store, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    tmp.replace(USERS_PATH)
+
+
+def remote_auth_configured() -> bool:
+    """True when durable GitHub user store secrets are present."""
+    return bool(
+        (_setting("AUTH_GITHUB_TOKEN", "") or "").strip()
+        and (_setting("AUTH_GITHUB_REPO", "") or "").strip()
+    )
+
+
+def _github_cfg() -> dict[str, str]:
+    return {
+        "token": (_setting("AUTH_GITHUB_TOKEN", "") or "").strip(),
+        "repo": (_setting("AUTH_GITHUB_REPO", "") or "").strip(),
+        "path": (_setting("AUTH_GITHUB_PATH", "users.json") or "users.json").strip(),
+        "branch": (_setting("AUTH_GITHUB_BRANCH", "main") or "main").strip(),
+    }
+
+
+def _github_headers(token: str) -> dict[str, str]:
+    return {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+
+
+def _read_remote_store() -> dict[str, Any] | None:
+    """Load users.json from GitHub Contents API. None if unavailable."""
+    global _REMOTE_SHA
+    if not remote_auth_configured():
+        return None
+    cfg = _github_cfg()
+    url = (
+        f"https://api.github.com/repos/{cfg['repo']}/contents/{cfg['path']}"
+        f"?ref={cfg['branch']}"
+    )
+    try:
+        resp = requests.get(url, headers=_github_headers(cfg["token"]), timeout=30)
+        if resp.status_code == 404:
+            _REMOTE_SHA = None
+            return _empty_store()
+        if resp.status_code >= 400:
+            return None
+        payload = resp.json()
+        _REMOTE_SHA = str(payload.get("sha") or "") or None
+        raw = base64.b64decode(payload.get("content") or "").decode("utf-8")
+        return _normalize_store(json.loads(raw))
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _write_remote_store(store: dict[str, Any]) -> bool:
+    """Persist users.json to GitHub. Returns True on success."""
+    global _REMOTE_SHA
+    if not remote_auth_configured():
+        return False
+    cfg = _github_cfg()
+    api = f"https://api.github.com/repos/{cfg['repo']}/contents/{cfg['path']}"
+    headers = _github_headers(cfg["token"])
+    # Refresh SHA to avoid update conflicts
+    try:
+        current = requests.get(
+            f"{api}?ref={cfg['branch']}", headers=headers, timeout=30
+        )
+        if current.status_code == 200:
+            _REMOTE_SHA = str(current.json().get("sha") or "") or None
+        elif current.status_code == 404:
+            _REMOTE_SHA = None
+    except Exception:  # noqa: BLE001
+        pass
+
+    body: dict[str, Any] = {
+        "message": "chore(auth): update users store",
+        "content": base64.b64encode(
+            (json.dumps(store, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+        ).decode("ascii"),
+        "branch": cfg["branch"],
+    }
+    if _REMOTE_SHA:
+        body["sha"] = _REMOTE_SHA
+    try:
+        resp = requests.put(api, headers=headers, json=body, timeout=30)
+        if resp.status_code >= 400:
+            return False
+        content = (resp.json() or {}).get("content") or {}
+        _REMOTE_SHA = str(content.get("sha") or "") or _REMOTE_SHA
+        return True
+    except Exception:  # noqa: BLE001
+        return False
 
 
 def _secrets_users() -> dict[str, Any]:
@@ -152,13 +264,23 @@ def _secrets_users() -> dict[str, Any]:
 
 
 def load_store() -> dict[str, Any]:
-    store = _read_file_store()
-    # Secrets users fill gaps / bootstrap (file wins on conflict for password_hash if present)
+    # Prefer durable remote store when configured (Streamlit Cloud)
+    remote = _read_remote_store()
+    if remote is not None:
+        store = remote
+        # Keep a local cache for faster subsequent reads / offline admin tools
+        try:
+            _write_file_store(store)
+        except Exception:  # noqa: BLE001
+            pass
+    else:
+        store = _read_file_store()
+
+    # Secrets users fill gaps / bootstrap (file/remote wins for password_hash if present)
     for email, row in _secrets_users().items():
         if email not in store["users"]:
             store["users"][email] = row
         else:
-            # Keep file password if set; otherwise take secrets hash
             existing = store["users"][email]
             if not existing.get("password_hash") and row.get("password_hash"):
                 existing["password_hash"] = row["password_hash"]
@@ -169,13 +291,9 @@ def load_store() -> dict[str, Any]:
 
 
 def save_store(store: dict[str, Any]) -> None:
-    USERS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    tmp = USERS_PATH.with_suffix(".tmp")
-    tmp.write_text(
-        json.dumps(store, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
-    tmp.replace(USERS_PATH)
+    _write_file_store(store)
+    if remote_auth_configured():
+        _write_remote_store(store)
 
 
 def ensure_bootstrap_admin() -> AuthUser | None:

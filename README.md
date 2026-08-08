@@ -78,10 +78,20 @@ See `.streamlit/secrets.auth.example.toml` for the full auth example.
 - No public registration: an **admin** creates users in **Informations → Gestion des accès**.
 - At creation, the admin can tick **send email notification** (URL, login, temporary password).
 - Users can **change their password** from the sidebar (**Mon compte**).
-- First admin is bootstrapped from `AUTH_ADMIN_*` secrets when `data/auth/users.json` is empty.
+- First admin is bootstrapped from `AUTH_ADMIN_*` secrets when the user store is empty.
 - User store file: `data/auth/users.json` (gitignored; password hashes only).
+- **Durable store (Streamlit Cloud):** set these secrets so accounts survive redeploys:
 
-**Streamlit Cloud note:** the app filesystem is ephemeral. For durable accounts on Cloud, keep a private copy of `users.json` (or re-create users after redeploy), or later plug a persistent store. Locally, password changes persist in `users.json`.
+```toml
+AUTH_GITHUB_TOKEN = "github_pat_..."          # Contents: Read/Write
+AUTH_GITHUB_REPO = "your-org/msr-wca-auth-store"  # private repo recommended
+AUTH_GITHUB_PATH = "users.json"
+AUTH_GITHUB_BRANCH = "main"
+```
+
+Create an empty private repo, add a fine-grained PAT with access to that repo only, then put the secrets in Streamlit Cloud. The app reads/writes `users.json` there; local `data/auth/users.json` stays as a cache.
+
+Without `AUTH_GITHUB_*`, Cloud wipes invited users on redeploy (only `AUTH_ADMIN_*` bootstrap remains).
 
 The `.env` file is local-only and is not published to GitHub.
 
