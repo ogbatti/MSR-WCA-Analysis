@@ -447,6 +447,11 @@ def origin_asylum_outflow_flows(
         code = str(iso).strip().upper()
         if not code:
             return None, None
+        # Prefer curated / mainland centroids for world hosts (ASR destinations)
+        if centroid_lookup and code in centroid_lookup:
+            return centroid_lookup[code]
+        if code in ext_xy:
+            return ext_xy[code]
         xy = _country_centroid(
             pop_df if pop_df is not None else pd.DataFrame(),
             geoloc_df,
@@ -455,10 +460,6 @@ def origin_asylum_outflow_flows(
         )
         if xy is not None:
             return xy
-        if centroid_lookup and code in centroid_lookup:
-            return centroid_lookup[code]
-        if code in ext_xy:
-            return ext_xy[code]
         return None, None
 
     o_lat, o_lon = _xy(target)

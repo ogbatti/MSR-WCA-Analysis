@@ -1351,8 +1351,9 @@ def _add_national_outflow_arcs(
         elif hasattr(row, "in_wca"):
             color = BLUE_PRIMARY if bool(getattr(row, "in_wca")) else RED_PRIMARY
         bend = 1.0 if i % 2 == 0 else -1.0
-        # Slightly vary curvature so parallel corridors stay readable
-        curv = 0.22 + 0.06 * ((i % 3) / 2.0)
+        # Long hauls (typically hors AOC) need flatter curves so the tip lands on the host
+        dist = math.hypot(a_lon - o_lon, a_lat - o_lat)
+        curv = 0.10 + 0.04 * ((i % 3) / 2.0) if dist > 25 else 0.22 + 0.06 * ((i % 3) / 2.0)
         arc = _curved_arc_points(
             o_lat, o_lon, a_lat, a_lon, curvature=curv, bend_sign=bend
         )
@@ -1366,23 +1367,23 @@ def _add_national_outflow_arcs(
             locations=arc,
             color=color,
             weight=weight,
-            opacity=0.72,
+            opacity=0.78,
             tooltip=tip,
         ).add_to(fmap)
 
-        # Arrow head near the end of the curve
-        if len(arc) >= 4:
-            p0, p1 = arc[-4], arc[-1]
+        # Arrow head at the destination end, oriented toward the host country
+        if len(arc) >= 3:
+            p0, p1 = arc[-3], arc[-1]
             deg = _bearing_deg(p0[0], p0[1], p1[0], p1[1])
             tip_html = (
-                f'<div style="width:18px;height:18px;margin-left:-9px;margin-top:-9px;'
-                f'transform:rotate({deg:.0f}deg);'
-                f'color:{color};font-size:16px;line-height:18px;'
-                f'text-shadow:0 0 2px #fff;pointer-events:none;">▲</div>'
+                f'<div style="width:22px;height:22px;margin-left:-11px;margin-top:-11px;'
+                f'transform:rotate({deg:.0f}deg);transform-origin:50% 50%;'
+                f'color:{color};font-size:20px;line-height:22px;text-align:center;'
+                f'text-shadow:0 0 3px #fff,0 0 3px #fff;pointer-events:none;font-weight:700;">▲</div>'
             )
             folium.Marker(
-                location=arc[-2],
-                icon=folium.DivIcon(html=tip_html, icon_size=(18, 18), icon_anchor=(0, 0)),
+                location=arc[-1],
+                icon=folium.DivIcon(html=tip_html, icon_size=(22, 22), icon_anchor=(0, 0)),
             ).add_to(fmap)
 
         if not bubble:
@@ -1411,24 +1412,102 @@ def _add_national_outflow_arcs(
         ).add_to(fmap)
 
 
-@lru_cache(maxsize=1)
-def iso3_centroid_lookup() -> dict[str, tuple[float, float]]:
-    """Approximate country centroids from world GeoJSON extents (ISO3 → lat, lon)."""
-    geo = _world_countries_geojson()
-    out: dict[str, tuple[float, float]] = {}
-    if not geo:
-        return out
-    for feat in geo.get("features", []):
-        iso = _feature_iso3(feat)
-        if not iso:
-            continue
+def _shoelace_area(ring: list) -> float:
+    """Absolute shoelace area of a lon/lat ring (relative units)."""
+    if not ring or len(ring) < 3:
+        return 0.0
+    area = 0.0
+    for i in range(len(ring) - 1):
+        x1, y1 = float(ring[i][0]), float(ring[i][1])
+        x2, y2 = float(ring[i + 1][0]), float(ring[i + 1][1])
+        area += x1 * y2 - x2 * y1
+    return abs(area) * 0.5
+
+
+def _ring_centroid(ring: list) -> tuple[float, float] | None:
+    if not ring:
+        return None
+    lats = [float(p[1]) for p in ring]
+    lons = [float(p[0]) for p in ring]
+    if not lats or not lons:
+        return None
+    return (sum(lats) / len(lats), sum(lons) / len(lons))
+
+
+def _feature_representative_centroid(feature: dict) -> tuple[float, float] | None:
+    """
+    Centroid of the largest polygon part (ignores small overseas territories
+    that otherwise drag France / USA / etc. far from the mainland).
+    """
+    geom = feature.get("geometry") or {}
+    gtype = geom.get("type")
+    coords = geom.get("coordinates")
+    if not coords:
+        return None
+    exteriors: list = []
+    if gtype == "Polygon":
+        exteriors = [coords[0]] if coords else []
+    elif gtype == "MultiPolygon":
+        exteriors = [poly[0] for poly in coords if poly]
+    else:
         lats: list[float] = []
         lons: list[float] = []
-        geom = feat.get("geometry") or {}
-        _coords_extents(geom.get("coordinates"), lats, lons)
+        _coords_extents(coords, lats, lons)
         if not lats or not lons:
-            continue
-        out[iso] = (sum(lats) / len(lats), sum(lons) / len(lons))
+            return None
+        return (sum(lats) / len(lats), sum(lons) / len(lons))
+    if not exteriors:
+        return None
+    best = max(exteriors, key=_shoelace_area)
+    return _ring_centroid(best)
+
+
+# Mainland / capital-area fallbacks when GeoJSON includes overseas territories
+_MAINLAND_CENTROIDS: dict[str, tuple[float, float]] = {
+    "FRA": (46.60, 2.50),
+    "USA": (39.50, -98.35),
+    "GBR": (54.00, -2.50),
+    "NLD": (52.13, 5.29),
+    "NOR": (60.47, 8.47),
+    "DNK": (56.26, 9.50),
+    "ESP": (40.20, -3.50),
+    "PRT": (39.40, -8.00),
+    "CAN": (56.13, -106.35),
+    "AUS": (-25.27, 133.78),
+    "NZL": (-41.00, 174.00),
+    "RUS": (61.52, 105.32),
+    "CHL": (-35.68, -71.54),
+    "ECU": (-1.83, -78.18),
+    "IDN": (-2.50, 118.00),
+}
+
+
+@lru_cache(maxsize=1)
+def iso3_centroid_lookup() -> dict[str, tuple[float, float]]:
+    """Country centroids (ISO3 → lat, lon), preferring mainland polygons."""
+    geo = _world_countries_geojson()
+    out: dict[str, tuple[float, float]] = {}
+    if geo:
+        for feat in geo.get("features", []):
+            iso = _feature_iso3(feat)
+            if not iso:
+                continue
+            xy = _feature_representative_centroid(feat)
+            if xy is not None:
+                out[iso] = xy
+    # Curated mainland points win over GeoJSON for known skewed countries
+    out.update(_MAINLAND_CENTROIDS)
+    try:
+        from src.reference_data import EXTERNAL_ORIGINS
+
+        for meta in EXTERNAL_ORIGINS.values():
+            iso = str(meta.get("iso3") or "").strip().upper()
+            if not iso or iso in _MAINLAND_CENTROIDS:
+                continue
+            if "latitude" in meta and "longitude" in meta:
+                out[iso] = (float(meta["latitude"]), float(meta["longitude"]))
+    except Exception:  # noqa: BLE001
+        pass
     return out
 
 
