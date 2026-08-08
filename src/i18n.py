@@ -55,8 +55,12 @@ STRINGS = {
         "en": "Refugees and asylum-seekers abroad (origin → asylum)",
     },
     "asr_diaspora_map_help": {
-        "fr": "Pays sélectionné = pays d'origine. Flèches bleues : pays d'asile en AOC. Flèches rouges : pays d'asile hors AOC. Source unique : Refugee Data Finder (ASR), dernière année disponible.",
-        "en": "Selected country = country of origin. Blue arrows: asylum countries in WCA. Red arrows: asylum countries outside WCA. Single source: Refugee Data Finder (ASR), latest available year.",
+        "fr": "Pays sélectionné = pays d'origine. Flèches bleues : pays d'asile en Afrique de l'Ouest et du Centre. Flèches rouges : pays d'asile hors de la région. Source : Refugee Data Finder (ASR).",
+        "en": "Selected country = country of origin. Blue arrows: asylum countries in West and Central Africa. Red arrows: asylum countries outside the region. Source: Refugee Data Finder (ASR).",
+    },
+    "asr_diaspora_map_summary": {
+        "fr": "En {year}, il y avait {total} réfugiés et demandeurs d'asile dans {n_countries} pays, dont {n_in} dans la région Afrique de l'Ouest et du Centre et {n_out} en dehors.",
+        "en": "In {year}, there were {total} refugees and asylum-seekers in {n_countries} countries, of which {n_in} in the West and Central Africa region and {n_out} outside.",
     },
     "asr_diaspora_map_empty": {
         "fr": "Aucune donnée ASR REF/ASY disponible pour cette nationalité sur la dernière année.",

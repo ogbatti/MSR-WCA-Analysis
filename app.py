@@ -1071,12 +1071,16 @@ def main() -> None:
                         if "in_wca" in plotted.columns
                         else 0
                     )
-                    year_bit = f" · ASR {asr_year}" if asr_year else ""
+                    n_countries = n_in + n_out
+                    total_people = float(plotted["total"].sum())
+                    year_label = asr_year if asr_year else "—"
                     st.caption(
-                        (
-                            f"{n_in} pays d'asile en AOC · {n_out} hors AOC{year_bit}"
-                            if lang == "fr"
-                            else f"{n_in} asylum countries in WCA · {n_out} outside WCA{year_bit}"
+                        t("asr_diaspora_map_summary", lang).format(
+                            year=year_label,
+                            total=_fmt_int(total_people),
+                            n_countries=n_countries,
+                            n_in=n_in,
+                            n_out=n_out,
                         )
                     )
                     diaspora_map = origin_outflow_map(
