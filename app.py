@@ -1029,7 +1029,6 @@ def main() -> None:
 
             if is_admin:
                 st.markdown(f"**{t('asr_diaspora_map', lang)}**")
-                st.caption(t("asr_diaspora_map_help", lang))
                 asr_year = None
                 try:
                     asr_raw = load_asr_origin_ref_asy(profile_iso)
@@ -1074,15 +1073,23 @@ def main() -> None:
                     n_countries = n_in + n_out
                     total_people = float(plotted["total"].sum())
                     year_label = asr_year if asr_year else "—"
-                    st.caption(
-                        t("asr_diaspora_map_summary", lang).format(
-                            year=year_label,
-                            total=_fmt_int(total_people),
-                            n_countries=n_countries,
-                            n_in=n_in,
-                            n_out=n_out,
+                    summary_kwargs = {
+                        "year": year_label,
+                        "total": _fmt_int(total_people),
+                        "n_countries": n_countries,
+                        "n_in": n_in,
+                        "n_out": n_out,
+                    }
+                    nat_adj = nationality_adjective(profile_iso, lang)
+                    if nat_adj:
+                        summary = t("asr_diaspora_map_summary", lang).format(
+                            nationality=nat_adj, **summary_kwargs
                         )
-                    )
+                    else:
+                        summary = t("asr_diaspora_map_summary_fallback", lang).format(
+                            country=country_name, **summary_kwargs
+                        )
+                    st.caption(summary)
                     diaspora_map = origin_outflow_map(
                         origin_flows,
                         lang,

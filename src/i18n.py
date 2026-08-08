@@ -59,8 +59,12 @@ STRINGS = {
         "en": "Selected country = country of origin. Blue arrows: asylum countries in West and Central Africa. Red arrows: asylum countries outside the region. Source: Refugee Data Finder (ASR).",
     },
     "asr_diaspora_map_summary": {
-        "fr": "En {year}, il y avait {total} réfugiés et demandeurs d'asile dans {n_countries} pays, dont {n_in} dans la région Afrique de l'Ouest et du Centre et {n_out} en dehors.",
-        "en": "In {year}, there were {total} refugees and asylum-seekers in {n_countries} countries, of which {n_in} in the West and Central Africa region and {n_out} outside.",
+        "fr": "En {year}, il y avait {total} réfugiés et demandeurs d'asile {nationality} dans {n_countries} pays, dont {n_in} dans la région Afrique de l'Ouest et du Centre et {n_out} en dehors.",
+        "en": "In {year}, there were {total} {nationality} refugees and asylum-seekers in {n_countries} countries, of which {n_in} in the West and Central Africa region and {n_out} outside.",
+    },
+    "asr_diaspora_map_summary_fallback": {
+        "fr": "En {year}, il y avait {total} réfugiés et demandeurs d'asile originaires du {country} dans {n_countries} pays, dont {n_in} dans la région Afrique de l'Ouest et du Centre et {n_out} en dehors.",
+        "en": "In {year}, there were {total} refugees and asylum-seekers from {country} in {n_countries} countries, of which {n_in} in the West and Central Africa region and {n_out} outside.",
     },
     "asr_diaspora_map_empty": {
         "fr": "Aucune donnée ASR REF/ASY disponible pour cette nationalité sur la dernière année.",
