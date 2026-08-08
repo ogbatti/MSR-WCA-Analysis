@@ -51,12 +51,12 @@ STRINGS = {
         "en": "Pie charts sized by caseload per area (Admin2 when available, otherwise Admin1).",
     },
     "asr_diaspora_map": {
-        "fr": "Réfugiés et demandeurs d'asile à l'étranger (ASR — dernière année)",
-        "en": "Refugees and asylum-seekers abroad (ASR — latest year)",
+        "fr": "Réfugiés et demandeurs d'asile à l'étranger (origine → asile)",
+        "en": "Refugees and asylum-seekers abroad (origin → asylum)",
     },
     "asr_diaspora_map_help": {
-        "fr": "Flèches bleues : pays d'accueil en AOC. Flèches rouges : pays d'accueil hors région. Source : Refugee Data Finder (stocks de fin d'année).",
-        "en": "Blue arrows: host countries in WCA. Red arrows: host countries outside the region. Source: Refugee Data Finder (end-of-year stocks).",
+        "fr": "Pays sélectionné = pays d'origine. Flèches bleues : pays d'asile en AOC. Flèches rouges : pays d'asile hors AOC. Source unique : Refugee Data Finder (ASR), dernière année disponible.",
+        "en": "Selected country = country of origin. Blue arrows: asylum countries in WCA. Red arrows: asylum countries outside WCA. Single source: Refugee Data Finder (ASR), latest available year.",
     },
     "asr_diaspora_map_empty": {
         "fr": "Aucune donnée ASR REF/ASY disponible pour cette nationalité sur la dernière année.",

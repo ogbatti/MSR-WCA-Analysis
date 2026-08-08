@@ -51,7 +51,7 @@ admin2_residence_map = _charts_mod.admin2_residence_map
 adult_age_detail_bar = _charts_mod.adult_age_detail_bar
 choropleth_hosts = _charts_mod.choropleth_hosts
 country_composition_pie_map = _charts_mod.country_composition_pie_map
-asr_diaspora_outflow_map = _charts_mod.asr_diaspora_outflow_map
+origin_outflow_map = _charts_mod.origin_outflow_map
 iso3_centroid_lookup = _charts_mod.iso3_centroid_lookup
 corridor_map = _charts_mod.corridor_map
 forecast_lines = _charts_mod.forecast_lines
@@ -73,7 +73,7 @@ residence_map_points = _indicators_mod.residence_map_points
 admin_composition_geo = _indicators_mod.admin_composition_geo
 nationals_ref_asy_in_region = _indicators_mod.nationals_ref_asy_in_region
 nationals_ref_asy_by_host = _indicators_mod.nationals_ref_asy_by_host
-asr_diaspora_flows_by_host = _indicators_mod.asr_diaspora_flows_by_host
+origin_asylum_outflow_flows = _indicators_mod.origin_asylum_outflow_flows
 accommodation_share_ref_asy = _indicators_mod.accommodation_share_ref_asy
 accommodation_stock = _indicators_mod.accommodation_stock
 age_adult_detail = _indicators_mod.age_adult_detail
@@ -1030,20 +1030,16 @@ def main() -> None:
             if is_admin:
                 st.markdown(f"**{t('asr_diaspora_map', lang)}**")
                 st.caption(t("asr_diaspora_map_help", lang))
-                asr_raw = pd.DataFrame()
                 asr_year = None
-                asr_ok = True
                 try:
                     asr_raw = load_asr_origin_ref_asy(profile_iso)
                     if not asr_raw.empty and "year" in asr_raw.columns:
                         asr_year = int(asr_raw["year"].dropna().iloc[0])
                 except Exception:  # noqa: BLE001
-                    asr_ok = False
+                    asr_raw = pd.DataFrame()
                     st.warning(t("asr_diaspora_map_error", lang))
-                if asr_ok and asr_raw.empty:
-                    st.caption(t("asr_diaspora_map_empty", lang))
-                elif asr_ok:
-                    asr_flows = asr_diaspora_flows_by_host(
+                try:
+                    origin_flows = origin_asylum_outflow_flows(
                         asr_raw,
                         origin_iso3=profile_iso,
                         wca_iso3=wca_iso3 or None,
@@ -1052,30 +1048,51 @@ def main() -> None:
                         pop_df=current,
                         centroid_lookup=iso3_centroid_lookup(),
                     )
-                    plotted = asr_flows.dropna(
+                except Exception:  # noqa: BLE001
+                    origin_flows = pd.DataFrame()
+                    st.warning(t("asr_diaspora_map_error", lang))
+                plotted = (
+                    origin_flows.dropna(
                         subset=["asylum_lat", "asylum_lon", "origin_lat", "origin_lon"]
                     )
-                    if plotted.empty:
-                        st.caption(t("asr_diaspora_map_empty", lang))
-                    else:
-                        if asr_year:
-                            st.caption(
-                                f"{'Année ASR' if lang == 'fr' else 'ASR year'}: {asr_year}"
-                            )
-                        diaspora_map = asr_diaspora_outflow_map(
-                            asr_flows,
-                            lang,
-                            country_name,
-                            profile_iso,
-                            year=asr_year,
+                    if origin_flows is not None and not origin_flows.empty
+                    else pd.DataFrame()
+                )
+                if plotted.empty:
+                    st.caption(t("asr_diaspora_map_empty", lang))
+                else:
+                    n_in = (
+                        int(plotted["in_wca"].fillna(False).sum())
+                        if "in_wca" in plotted.columns
+                        else 0
+                    )
+                    n_out = (
+                        int((~plotted["in_wca"].fillna(False)).sum())
+                        if "in_wca" in plotted.columns
+                        else 0
+                    )
+                    year_bit = f" · ASR {asr_year}" if asr_year else ""
+                    st.caption(
+                        (
+                            f"{n_in} pays d'asile en AOC · {n_out} hors AOC{year_bit}"
+                            if lang == "fr"
+                            else f"{n_in} asylum countries in WCA · {n_out} outside WCA{year_bit}"
                         )
-                        _render_expandable_folium(
-                            diaspora_map,
-                            key=f"asr_diaspora_map_{profile_iso}",
-                            lang=lang,
-                            height=560,
-                            large_height=900,
-                        )
+                    )
+                    diaspora_map = origin_outflow_map(
+                        origin_flows,
+                        lang,
+                        country_name,
+                        profile_iso,
+                        subtitle_year=asr_year,
+                    )
+                    _render_expandable_folium(
+                        diaspora_map,
+                        key=f"origin_outflow_map_{profile_iso}",
+                        lang=lang,
+                        height=560,
+                        large_height=900,
+                    )
 
             points = residence_map_points(
                 country_df, geoloc, profile_iso, countries_df=countries

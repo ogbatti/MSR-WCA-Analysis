@@ -269,16 +269,23 @@ def nationals_ref_asy_by_host(
     wca_iso3: list[str] | None = None,
     origin_hcr3: str | None = None,
     exclude_same_country: bool = True,
+    restrict_hosts_to_wca: bool = True,
+    countries_df: pd.DataFrame | None = None,
+    geoloc_df: pd.DataFrame | None = None,
+    centroid_lookup: dict[str, tuple[float, float]] | None = None,
 ) -> pd.DataFrame:
     """
-    REF + ASY from ``origin_iso3`` aggregated by asylum country (WCA hosts).
+    REF + ASY from ``origin_iso3`` aggregated by asylum country.
 
-    Returns one row per host with totals and asylum / origin coordinates.
+    When ``restrict_hosts_to_wca`` is False, all asylum countries present in
+    ``df`` are kept; ``in_wca`` flags whether each host is in the WCA list
+    (for blue / red corridor maps).
     """
+    host_filter = wca_iso3 if restrict_hosts_to_wca else None
     out = _nationals_ref_asy_subset(
         df,
         origin_iso3=origin_iso3,
-        wca_iso3=wca_iso3,
+        wca_iso3=host_filter,
         origin_hcr3=origin_hcr3,
     )
     if out.empty:
@@ -322,14 +329,67 @@ def nationals_ref_asy_by_host(
         if not home.empty:
             o_lat = float(home.iloc[0]["asylum_lat"])
             o_lon = float(home.iloc[0]["asylum_lon"])
+    if o_lat is None:
+        xy = _country_centroid(
+            df if df is not None else pd.DataFrame(),
+            geoloc_df,
+            target_iso,
+            countries_df,
+        )
+        if xy is None and centroid_lookup and target_iso in centroid_lookup:
+            xy = centroid_lookup[target_iso]
+        if xy is not None:
+            o_lat, o_lon = xy
+
+    wca = {str(c).strip().upper() for c in (wca_iso3 or []) if c}
     hosts["origin_iso3"] = target_iso
     hosts["origin_lat"] = o_lat
     hosts["origin_lon"] = o_lon
-    return hosts
+    hosts["asylum_iso3"] = hosts["asylum_iso3"].astype(str).str.strip().str.upper()
+    hosts["in_wca"] = hosts["asylum_iso3"].map(lambda c: bool(c in wca) if wca else True)
+    if "asylum_lat" not in hosts.columns:
+        hosts["asylum_lat"] = pd.NA
+    if "asylum_lon" not in hosts.columns:
+        hosts["asylum_lon"] = pd.NA
+
+    # Fill missing asylum coordinates (hosts outside the usual WCA geocode set)
+    if hosts["asylum_lat"].isna().any() or hosts["asylum_lon"].isna().any():
+        try:
+            from src.reference_data import EXTERNAL_ORIGINS
+
+            ext_xy = {
+                str(m.get("iso3") or "").upper(): (
+                    float(m["latitude"]),
+                    float(m["longitude"]),
+                )
+                for m in EXTERNAL_ORIGINS.values()
+                if m.get("iso3") is not None
+            }
+        except Exception:  # noqa: BLE001
+            ext_xy = {}
+        for i, row in hosts.iterrows():
+            if pd.notna(row.get("asylum_lat")) and pd.notna(row.get("asylum_lon")):
+                continue
+            code = str(row.get("asylum_iso3") or "").upper()
+            xy = _country_centroid(
+                df if df is not None else pd.DataFrame(),
+                geoloc_df,
+                code,
+                countries_df,
+            )
+            if xy is None and code in ext_xy:
+                xy = ext_xy[code]
+            if xy is None and centroid_lookup and code in centroid_lookup:
+                xy = centroid_lookup[code]
+            if xy is not None:
+                hosts.at[i, "asylum_lat"] = xy[0]
+                hosts.at[i, "asylum_lon"] = xy[1]
+
+    return hosts.reset_index(drop=True)
 
 
-def asr_diaspora_flows_by_host(
-    asr_df: pd.DataFrame,
+def origin_asylum_outflow_flows(
+    asr_df: pd.DataFrame | None,
     *,
     origin_iso3: str,
     wca_iso3: list[str] | None = None,
@@ -339,39 +399,40 @@ def asr_diaspora_flows_by_host(
     centroid_lookup: dict[str, tuple[float, float]] | None = None,
 ) -> pd.DataFrame:
     """
-    Enrich ASR origin→host REF+ASY rows with coordinates and in-region flag.
+    Origin → asylum REF+ASY corridors from a single ASR year.
 
-    Blue (in WCA) vs red (outside) corridors for the admin diaspora map.
+    - Blue (``in_wca=True``): asylum countries in WCA
+    - Red (``in_wca=False``): asylum countries outside WCA
     """
-    empty_cols = [
-        "year",
-        "origin_iso3",
-        "asylum_iso3",
-        "asylum_name_en",
-        "asylum_name_fr",
-        "refugees",
-        "asylum_seekers",
-        "total",
-        "asylum_lat",
-        "asylum_lon",
-        "origin_lat",
-        "origin_lon",
-        "in_wca",
-    ]
-    if asr_df is None or asr_df.empty:
-        return pd.DataFrame(columns=empty_cols)
+    empty = pd.DataFrame()
+    if asr_df is None or asr_df.empty or not origin_iso3:
+        return empty
 
-    target = str(origin_iso3).strip().upper()
     wca = {str(c).strip().upper() for c in (wca_iso3 or []) if c}
-    d = asr_df.copy()
-    d["asylum_iso3"] = d["asylum_iso3"].astype(str).str.strip().str.upper()
-    d = d[d["asylum_iso3"].ne("") & d["asylum_iso3"].ne("-") & d["asylum_iso3"].ne(target)]
-    d = d[d["total"].fillna(0) > 0].copy()
-    if d.empty:
-        return pd.DataFrame(columns=empty_cols)
+    target = str(origin_iso3).strip().upper()
 
-    # Prefer ActivityInfo / EXTERNAL French names when available
-    name_by_iso: dict[str, tuple[str, str]] = {}
+    try:
+        from src.reference_data import EXTERNAL_ORIGINS
+
+        ext_xy = {
+            str(m.get("iso3") or "").upper(): (
+                float(m["latitude"]),
+                float(m["longitude"]),
+            )
+            for m in EXTERNAL_ORIGINS.values()
+            if m.get("iso3") is not None
+        }
+        name_by_iso = {
+            str(m.get("iso3") or "").upper(): (
+                str(m.get("name_en") or m.get("iso3")),
+                str(m.get("name_fr") or m.get("name_en") or m.get("iso3")),
+            )
+            for m in EXTERNAL_ORIGINS.values()
+            if m.get("iso3") is not None
+        }
+    except Exception:  # noqa: BLE001
+        ext_xy, name_by_iso = {}, {}
+
     if countries_df is not None and not countries_df.empty and "iso3" in countries_df.columns:
         for _, r in countries_df.iterrows():
             iso = str(r.get("iso3") or "").strip().upper()
@@ -381,18 +442,6 @@ def asr_diaspora_flows_by_host(
                 str(r.get("name_en") or iso),
                 str(r.get("name_fr") or r.get("name_en") or iso),
             )
-    try:
-        from src.reference_data import EXTERNAL_ORIGINS
-
-        for meta in EXTERNAL_ORIGINS.values():
-            iso = str(meta.get("iso3") or "").strip().upper()
-            if iso and iso not in name_by_iso:
-                name_by_iso[iso] = (
-                    str(meta.get("name_en") or iso),
-                    str(meta.get("name_fr") or meta.get("name_en") or iso),
-                )
-    except Exception:  # noqa: BLE001
-        pass
 
     def _xy(iso: str) -> tuple[float | None, float | None]:
         code = str(iso).strip().upper()
@@ -408,29 +457,34 @@ def asr_diaspora_flows_by_host(
             return xy
         if centroid_lookup and code in centroid_lookup:
             return centroid_lookup[code]
-        try:
-            from src.reference_data import EXTERNAL_ORIGINS
-
-            for meta in EXTERNAL_ORIGINS.values():
-                if str(meta.get("iso3") or "").upper() == code:
-                    return float(meta["latitude"]), float(meta["longitude"])
-        except Exception:  # noqa: BLE001
-            pass
+        if code in ext_xy:
+            return ext_xy[code]
         return None, None
 
     o_lat, o_lon = _xy(target)
+    asr = asr_df.copy()
+    asr["asylum_iso3"] = asr["asylum_iso3"].astype(str).str.strip().str.upper()
+    asr = asr[
+        (asr["total"].fillna(0) > 0)
+        & (asr["asylum_iso3"] != "")
+        & (asr["asylum_iso3"] != "-")
+        & (asr["asylum_iso3"] != target)
+    ]
+    if asr.empty:
+        return empty
+
     rows: list[dict] = []
-    for _, r in d.iterrows():
+    for _, r in asr.iterrows():
         coa = str(r["asylum_iso3"])
         a_lat, a_lon = _xy(coa)
         en = str(r.get("asylum_name_en") or coa)
         fr = str(r.get("asylum_name_fr") or en)
         if coa in name_by_iso:
             en, fr = name_by_iso[coa]
+        in_region = bool(coa in wca) if wca else False
         rows.append(
             {
                 "year": int(r["year"]) if pd.notna(r.get("year")) else None,
-                "origin_iso3": target,
                 "asylum_iso3": coa,
                 "asylum_name_en": en,
                 "asylum_name_fr": fr,
@@ -439,14 +493,16 @@ def asr_diaspora_flows_by_host(
                 "total": float(r.get("total") or 0),
                 "asylum_lat": a_lat,
                 "asylum_lon": a_lon,
+                "origin_iso3": target,
                 "origin_lat": o_lat,
                 "origin_lon": o_lon,
-                "in_wca": bool(coa in wca) if wca else False,
+                "in_wca": in_region,
+                "source": "asr",
             }
         )
     out = pd.DataFrame(rows)
     if out.empty:
-        return pd.DataFrame(columns=empty_cols)
+        return empty
     return out.sort_values("total", ascending=False).reset_index(drop=True)
 
 

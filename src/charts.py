@@ -1440,8 +1440,22 @@ def asr_diaspora_outflow_map(
     *,
     year: int | None = None,
 ) -> folium.Map:
+    """Deprecated alias — use ``origin_outflow_map``."""
+    return origin_outflow_map(
+        flows, lang, country_name, origin_iso3, subtitle_year=year
+    )
+
+
+def origin_outflow_map(
+    flows: pd.DataFrame,
+    lang: str,
+    country_name: str,
+    origin_iso3: str,
+    *,
+    subtitle_year: int | None = None,
+) -> folium.Map:
     """
-    World map: curved arrows from origin to ASR host countries.
+    Map of REF+ASY outflows: selected country as origin → asylum hosts.
     Blue = hosts in WCA; red = hosts outside the region.
     """
     d = flows.copy() if flows is not None else pd.DataFrame()
@@ -1456,7 +1470,7 @@ def asr_diaspora_outflow_map(
         lons = [bounds[0][1], bounds[1][1]] + d["asylum_lon"].astype(float).tolist()
         lats.extend(d["origin_lat"].astype(float).tolist())
         lons.extend(d["origin_lon"].astype(float).tolist())
-        pad = 4.0
+        pad = 3.0
         bounds = [
             [max(-60.0, min(lats) - pad), max(-170.0, min(lons) - pad)],
             [min(75.0, max(lats) + pad), min(180.0, max(lons) + pad)],
@@ -1467,7 +1481,7 @@ def asr_diaspora_outflow_map(
 
     fmap = folium.Map(
         location=[center_lat, center_lon],
-        zoom_start=3,
+        zoom_start=4,
         tiles="CartoDB positron",
         control_scale=True,
         min_zoom=2,
@@ -1507,17 +1521,18 @@ def asr_diaspora_outflow_map(
                 fmap, inside, lang, country_name, default_color=BLUE_PRIMARY, bubble=True
             )
 
-    yr = year
-    if yr is None and not d.empty and "year" in d.columns and d["year"].notna().any():
-        yr = int(d["year"].dropna().iloc[0])
     if lang == "fr":
-        legend_title = f"ASR {yr} — REF + ASY" if yr else "ASR — REF + ASY"
-        in_lbl = "Pays d'accueil en AOC"
-        out_lbl = "Pays d'accueil hors AOC"
+        legend_title = f"Origine : {country_name} → pays d'asile (REF + ASY)"
+        if subtitle_year:
+            legend_title = f"{legend_title} — {subtitle_year}"
+        in_lbl = "Asile en AOC (flèche bleue)"
+        out_lbl = "Asile hors AOC (flèche rouge)"
     else:
-        legend_title = f"ASR {yr} — REF + ASY" if yr else "ASR — REF + ASY"
-        in_lbl = "Host countries in WCA"
-        out_lbl = "Host countries outside WCA"
+        legend_title = f"Origin: {country_name} → countries of asylum (REF + ASY)"
+        if subtitle_year:
+            legend_title = f"{legend_title} — {subtitle_year}"
+        in_lbl = "Asylum in WCA (blue arrow)"
+        out_lbl = "Asylum outside WCA (red arrow)"
     legend_html = f"""
     <div style="position:fixed;bottom:28px;left:28px;z-index:9999;
          background:rgba(255,255,255,0.94);padding:10px 12px;border-radius:6px;
@@ -1539,9 +1554,9 @@ def asr_diaspora_outflow_map(
         var keys = Object.keys(window).filter(k => k.startsWith('map_'));
         keys.forEach(function(k) {{
           var m = window[k];
-          if (m && m.fitBounds && !m._asrDiasporaFitted) {{
+          if (m && m.fitBounds && !m._originOutflowFitted) {{
             m.fitBounds([[{sw[0]}, {sw[1]}], [{ne[0]}, {ne[1]}]], {{padding: [36, 36], maxZoom: 5}});
-            m._asrDiasporaFitted = true;
+            m._originOutflowFitted = true;
           }}
         }});
       }}
