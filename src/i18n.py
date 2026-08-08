@@ -59,11 +59,11 @@ STRINGS = {
         "en": "Selected country = country of origin. Blue arrows: asylum countries in West and Central Africa. Red arrows: asylum countries outside the region. Source: Refugee Data Finder (ASR).",
     },
     "asr_diaspora_map_summary": {
-        "fr": "En {year}, il y avait {total} réfugiés et demandeurs d'asile {nationality} dans {n_countries} pays, dont {total_in} dans {n_in} pays de la région Afrique de l'Ouest et du Centre et {total_out} dans {n_out} pays en dehors.",
+        "fr": "En {year}, il y avait {total} réfugiés et demandeurs d'asile {nationality} dans {n_countries} pays, dont {total_in} dans {n_in} pays de la région de l'Afrique de l'Ouest et du Centre et {total_out} dans {n_out} pays en dehors.",
         "en": "In {year}, there were {total} {nationality} refugees and asylum-seekers in {n_countries} countries, of which {total_in} in {n_in} countries in the West and Central Africa region and {total_out} in {n_out} countries outside.",
     },
     "asr_diaspora_map_summary_fallback": {
-        "fr": "En {year}, il y avait {total} réfugiés et demandeurs d'asile originaires du {country} dans {n_countries} pays, dont {total_in} dans {n_in} pays de la région Afrique de l'Ouest et du Centre et {total_out} dans {n_out} pays en dehors.",
+        "fr": "En {year}, il y avait {total} réfugiés et demandeurs d'asile originaires du {country} dans {n_countries} pays, dont {total_in} dans {n_in} pays de la région de l'Afrique de l'Ouest et du Centre et {total_out} dans {n_out} pays en dehors.",
         "en": "In {year}, there were {total} refugees and asylum-seekers from {country} in {n_countries} countries, of which {total_in} in {n_in} countries in the West and Central Africa region and {total_out} in {n_out} countries outside.",
     },
     "asr_diaspora_map_empty": {
