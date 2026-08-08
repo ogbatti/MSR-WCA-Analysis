@@ -50,6 +50,22 @@ STRINGS = {
         "fr": "Camemberts proportionnels aux effectifs par zone (Admin2 si disponible, sinon Admin1).",
         "en": "Pie charts sized by caseload per area (Admin2 when available, otherwise Admin1).",
     },
+    "asr_diaspora_map": {
+        "fr": "Réfugiés et demandeurs d'asile à l'étranger (ASR — dernière année)",
+        "en": "Refugees and asylum-seekers abroad (ASR — latest year)",
+    },
+    "asr_diaspora_map_help": {
+        "fr": "Flèches bleues : pays d'accueil en AOC. Flèches rouges : pays d'accueil hors région. Source : Refugee Data Finder (stocks de fin d'année).",
+        "en": "Blue arrows: host countries in WCA. Red arrows: host countries outside the region. Source: Refugee Data Finder (end-of-year stocks).",
+    },
+    "asr_diaspora_map_empty": {
+        "fr": "Aucune donnée ASR REF/ASY disponible pour cette nationalité sur la dernière année.",
+        "en": "No ASR REF/ASY data available for this nationality in the latest year.",
+    },
+    "asr_diaspora_map_error": {
+        "fr": "Impossible de charger les données ASR (Data Finder) pour cette carte.",
+        "en": "Unable to load ASR (Data Finder) data for this map.",
+    },
     "map_expand": {"fr": "Agrandir", "en": "Expand"},
     "map_expand_title": {"fr": "Carte agrandie", "en": "Expanded map"},
     "map_expand_close": {"fr": "Fermer", "en": "Close"},

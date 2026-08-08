@@ -1323,8 +1323,11 @@ def _add_national_outflow_arcs(
     outflows: pd.DataFrame,
     lang: str,
     origin_name: str,
+    *,
+    default_color: str | None = None,
+    bubble: bool = True,
 ) -> None:
-    """Curved arrows from origin country to host REF+ASY totals (bubbles)."""
+    """Curved arrows from origin country to host REF+ASY totals (optional bubbles)."""
     if outflows is None or outflows.empty:
         return
     d = outflows.dropna(subset=["asylum_lat", "asylum_lon", "origin_lat", "origin_lon"]).copy()
@@ -1333,6 +1336,7 @@ def _add_national_outflow_arcs(
 
     max_total = float(d["total"].max() or 1.0)
     host_name = "asylum_name_fr" if lang == "fr" else "asylum_name_en"
+    base_color = default_color or BLUE_PRIMARY
     for i, row in enumerate(d.itertuples(index=False)):
         total = float(getattr(row, "total", 0) or 0)
         if total <= 0:
@@ -1341,6 +1345,11 @@ def _add_national_outflow_arcs(
         o_lon = float(row.origin_lon)
         a_lat = float(row.asylum_lat)
         a_lon = float(row.asylum_lon)
+        color = base_color
+        if hasattr(row, "arc_color") and getattr(row, "arc_color"):
+            color = str(getattr(row, "arc_color"))
+        elif hasattr(row, "in_wca"):
+            color = BLUE_PRIMARY if bool(getattr(row, "in_wca")) else RED_PRIMARY
         bend = 1.0 if i % 2 == 0 else -1.0
         # Slightly vary curvature so parallel corridors stay readable
         curv = 0.22 + 0.06 * ((i % 3) / 2.0)
@@ -1355,7 +1364,7 @@ def _add_national_outflow_arcs(
         )
         folium.PolyLine(
             locations=arc,
-            color=BLUE_PRIMARY,
+            color=color,
             weight=weight,
             opacity=0.72,
             tooltip=tip,
@@ -1368,7 +1377,7 @@ def _add_national_outflow_arcs(
             tip_html = (
                 f'<div style="width:18px;height:18px;margin-left:-9px;margin-top:-9px;'
                 f'transform:rotate({deg:.0f}deg);'
-                f'color:{BLUE_PRIMARY};font-size:16px;line-height:18px;'
+                f'color:{color};font-size:16px;line-height:18px;'
                 f'text-shadow:0 0 2px #fff;pointer-events:none;">▲</div>'
             )
             folium.Marker(
@@ -1376,14 +1385,17 @@ def _add_national_outflow_arcs(
                 icon=folium.DivIcon(html=tip_html, icon_size=(18, 18), icon_anchor=(0, 0)),
             ).add_to(fmap)
 
+        if not bubble:
+            continue
         # Number bubble on the host country
         bubble_r = int(28 + 22 * math.sqrt(total / max_total))
         bubble_r = max(28, min(bubble_r, 56))
         num = _fmt_bubble_n(total)
+        # Soft fill from arc color
         bubble_html = (
             f'<div style="width:{bubble_r}px;height:{bubble_r}px;margin-left:-{bubble_r // 2}px;'
             f'margin-top:-{bubble_r // 2}px;border-radius:50%;'
-            f'background:rgba(0,114,188,0.78);border:2px solid #FFFFFF;'
+            f'background:{color}c7;border:2px solid #FFFFFF;'
             f'box-shadow:0 1px 4px rgba(11,55,84,0.35);'
             f'display:flex;align-items:center;justify-content:center;'
             f'color:#FFFFFF;font-weight:700;font-size:{max(10, bubble_r // 4)}px;'
@@ -1397,6 +1409,149 @@ def _add_national_outflow_arcs(
             tooltip=tip,
             popup=folium.Popup(tip, max_width=260),
         ).add_to(fmap)
+
+
+@lru_cache(maxsize=1)
+def iso3_centroid_lookup() -> dict[str, tuple[float, float]]:
+    """Approximate country centroids from world GeoJSON extents (ISO3 → lat, lon)."""
+    geo = _world_countries_geojson()
+    out: dict[str, tuple[float, float]] = {}
+    if not geo:
+        return out
+    for feat in geo.get("features", []):
+        iso = _feature_iso3(feat)
+        if not iso:
+            continue
+        lats: list[float] = []
+        lons: list[float] = []
+        geom = feat.get("geometry") or {}
+        _coords_extents(geom.get("coordinates"), lats, lons)
+        if not lats or not lons:
+            continue
+        out[iso] = (sum(lats) / len(lats), sum(lons) / len(lons))
+    return out
+
+
+def asr_diaspora_outflow_map(
+    flows: pd.DataFrame,
+    lang: str,
+    country_name: str,
+    origin_iso3: str,
+    *,
+    year: int | None = None,
+) -> folium.Map:
+    """
+    World map: curved arrows from origin to ASR host countries.
+    Blue = hosts in WCA; red = hosts outside the region.
+    """
+    d = flows.copy() if flows is not None else pd.DataFrame()
+    if not d.empty:
+        d = d.dropna(subset=["asylum_lat", "asylum_lon", "origin_lat", "origin_lon"])
+
+    bounds = _country_bounds(origin_iso3, pad=2.0)
+    if bounds is None:
+        bounds = [list(b) for b in _WCA_BOUNDS]
+    if not d.empty:
+        lats = [bounds[0][0], bounds[1][0]] + d["asylum_lat"].astype(float).tolist()
+        lons = [bounds[0][1], bounds[1][1]] + d["asylum_lon"].astype(float).tolist()
+        lats.extend(d["origin_lat"].astype(float).tolist())
+        lons.extend(d["origin_lon"].astype(float).tolist())
+        pad = 4.0
+        bounds = [
+            [max(-60.0, min(lats) - pad), max(-170.0, min(lons) - pad)],
+            [min(75.0, max(lats) + pad), min(180.0, max(lons) + pad)],
+        ]
+
+    center_lat = (bounds[0][0] + bounds[1][0]) / 2.0
+    center_lon = (bounds[0][1] + bounds[1][1]) / 2.0
+
+    fmap = folium.Map(
+        location=[center_lat, center_lon],
+        zoom_start=3,
+        tiles="CartoDB positron",
+        control_scale=True,
+        min_zoom=2,
+        max_zoom=10,
+        world_copy_jump=False,
+    )
+    fmap.get_root().header.add_child(
+        folium.Element(
+            """
+            <style>
+              .leaflet-container path:focus,
+              .leaflet-container path:focus-visible,
+              .leaflet-interactive:focus,
+              .leaflet-interactive:focus-visible,
+              .leaflet-marker-icon:focus,
+              .leaflet-marker-icon:focus-visible,
+              .leaflet-marker-icon:active {
+                outline: none !important;
+                box-shadow: none !important;
+              }
+            </style>
+            """
+        )
+    )
+    _add_country_focus_layer(fmap, origin_iso3)
+
+    if not d.empty:
+        # Draw red (outside) first, blue on top for readability in the region
+        outside = d[~d["in_wca"].fillna(False)] if "in_wca" in d.columns else d.iloc[0:0]
+        inside = d[d["in_wca"].fillna(False)] if "in_wca" in d.columns else d
+        if not outside.empty:
+            _add_national_outflow_arcs(
+                fmap, outside, lang, country_name, default_color=RED_PRIMARY, bubble=True
+            )
+        if not inside.empty:
+            _add_national_outflow_arcs(
+                fmap, inside, lang, country_name, default_color=BLUE_PRIMARY, bubble=True
+            )
+
+    yr = year
+    if yr is None and not d.empty and "year" in d.columns and d["year"].notna().any():
+        yr = int(d["year"].dropna().iloc[0])
+    if lang == "fr":
+        legend_title = f"ASR {yr} — REF + ASY" if yr else "ASR — REF + ASY"
+        in_lbl = "Pays d'accueil en AOC"
+        out_lbl = "Pays d'accueil hors AOC"
+    else:
+        legend_title = f"ASR {yr} — REF + ASY" if yr else "ASR — REF + ASY"
+        in_lbl = "Host countries in WCA"
+        out_lbl = "Host countries outside WCA"
+    legend_html = f"""
+    <div style="position:fixed;bottom:28px;left:28px;z-index:9999;
+         background:rgba(255,255,255,0.94);padding:10px 12px;border-radius:6px;
+         border:1px solid #CFD8DC;font-family:Lato,Arial,sans-serif;font-size:12px;
+         box-shadow:0 1px 4px rgba(11,55,84,0.18);line-height:1.45;color:#0B3754;">
+      <div style="font-weight:700;margin-bottom:6px;">{legend_title}</div>
+      <div><span style="color:{BLUE_PRIMARY};font-weight:700;">→</span> {in_lbl}</div>
+      <div><span style="color:{RED_PRIMARY};font-weight:700;">→</span> {out_lbl}</div>
+    </div>
+    """
+    fmap.get_root().html.add_child(folium.Element(legend_html))
+
+    sw, ne = bounds
+    fmap.fit_bounds(bounds, padding=(36, 36))
+    js = f"""
+    <script>
+    (function() {{
+      function fitOnce() {{
+        var keys = Object.keys(window).filter(k => k.startsWith('map_'));
+        keys.forEach(function(k) {{
+          var m = window[k];
+          if (m && m.fitBounds && !m._asrDiasporaFitted) {{
+            m.fitBounds([[{sw[0]}, {sw[1]}], [{ne[0]}, {ne[1]}]], {{padding: [36, 36], maxZoom: 5}});
+            m._asrDiasporaFitted = true;
+          }}
+        }});
+      }}
+      setTimeout(fitOnce, 80);
+      setTimeout(fitOnce, 400);
+    }})();
+    </script>
+    """
+    fmap.get_root().html.add_child(folium.Element(js))
+    return fmap
 
 
 def country_composition_pie_map(

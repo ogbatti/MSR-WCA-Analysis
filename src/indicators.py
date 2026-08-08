@@ -328,6 +328,128 @@ def nationals_ref_asy_by_host(
     return hosts
 
 
+def asr_diaspora_flows_by_host(
+    asr_df: pd.DataFrame,
+    *,
+    origin_iso3: str,
+    wca_iso3: list[str] | None = None,
+    countries_df: pd.DataFrame | None = None,
+    geoloc_df: pd.DataFrame | None = None,
+    pop_df: pd.DataFrame | None = None,
+    centroid_lookup: dict[str, tuple[float, float]] | None = None,
+) -> pd.DataFrame:
+    """
+    Enrich ASR origin→host REF+ASY rows with coordinates and in-region flag.
+
+    Blue (in WCA) vs red (outside) corridors for the admin diaspora map.
+    """
+    empty_cols = [
+        "year",
+        "origin_iso3",
+        "asylum_iso3",
+        "asylum_name_en",
+        "asylum_name_fr",
+        "refugees",
+        "asylum_seekers",
+        "total",
+        "asylum_lat",
+        "asylum_lon",
+        "origin_lat",
+        "origin_lon",
+        "in_wca",
+    ]
+    if asr_df is None or asr_df.empty:
+        return pd.DataFrame(columns=empty_cols)
+
+    target = str(origin_iso3).strip().upper()
+    wca = {str(c).strip().upper() for c in (wca_iso3 or []) if c}
+    d = asr_df.copy()
+    d["asylum_iso3"] = d["asylum_iso3"].astype(str).str.strip().str.upper()
+    d = d[d["asylum_iso3"].ne("") & d["asylum_iso3"].ne("-") & d["asylum_iso3"].ne(target)]
+    d = d[d["total"].fillna(0) > 0].copy()
+    if d.empty:
+        return pd.DataFrame(columns=empty_cols)
+
+    # Prefer ActivityInfo / EXTERNAL French names when available
+    name_by_iso: dict[str, tuple[str, str]] = {}
+    if countries_df is not None and not countries_df.empty and "iso3" in countries_df.columns:
+        for _, r in countries_df.iterrows():
+            iso = str(r.get("iso3") or "").strip().upper()
+            if not iso:
+                continue
+            name_by_iso[iso] = (
+                str(r.get("name_en") or iso),
+                str(r.get("name_fr") or r.get("name_en") or iso),
+            )
+    try:
+        from src.reference_data import EXTERNAL_ORIGINS
+
+        for meta in EXTERNAL_ORIGINS.values():
+            iso = str(meta.get("iso3") or "").strip().upper()
+            if iso and iso not in name_by_iso:
+                name_by_iso[iso] = (
+                    str(meta.get("name_en") or iso),
+                    str(meta.get("name_fr") or meta.get("name_en") or iso),
+                )
+    except Exception:  # noqa: BLE001
+        pass
+
+    def _xy(iso: str) -> tuple[float | None, float | None]:
+        code = str(iso).strip().upper()
+        if not code:
+            return None, None
+        xy = _country_centroid(
+            pop_df if pop_df is not None else pd.DataFrame(),
+            geoloc_df,
+            code,
+            countries_df,
+        )
+        if xy is not None:
+            return xy
+        if centroid_lookup and code in centroid_lookup:
+            return centroid_lookup[code]
+        try:
+            from src.reference_data import EXTERNAL_ORIGINS
+
+            for meta in EXTERNAL_ORIGINS.values():
+                if str(meta.get("iso3") or "").upper() == code:
+                    return float(meta["latitude"]), float(meta["longitude"])
+        except Exception:  # noqa: BLE001
+            pass
+        return None, None
+
+    o_lat, o_lon = _xy(target)
+    rows: list[dict] = []
+    for _, r in d.iterrows():
+        coa = str(r["asylum_iso3"])
+        a_lat, a_lon = _xy(coa)
+        en = str(r.get("asylum_name_en") or coa)
+        fr = str(r.get("asylum_name_fr") or en)
+        if coa in name_by_iso:
+            en, fr = name_by_iso[coa]
+        rows.append(
+            {
+                "year": int(r["year"]) if pd.notna(r.get("year")) else None,
+                "origin_iso3": target,
+                "asylum_iso3": coa,
+                "asylum_name_en": en,
+                "asylum_name_fr": fr,
+                "refugees": float(r.get("refugees") or 0),
+                "asylum_seekers": float(r.get("asylum_seekers") or 0),
+                "total": float(r.get("total") or 0),
+                "asylum_lat": a_lat,
+                "asylum_lon": a_lon,
+                "origin_lat": o_lat,
+                "origin_lon": o_lon,
+                "in_wca": bool(coa in wca) if wca else False,
+            }
+        )
+    out = pd.DataFrame(rows)
+    if out.empty:
+        return pd.DataFrame(columns=empty_cols)
+    return out.sort_values("total", ascending=False).reset_index(drop=True)
+
+
 def kpi_snapshot(df: pd.DataFrame, prev_df: pd.DataFrame | None = None) -> dict:
     total = float(df["total"].sum()) if not df.empty else 0.0
     female = float(df["female"].sum()) if not df.empty else 0.0

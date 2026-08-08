@@ -69,6 +69,88 @@ def _fetch_asr_pages(
     return items
 
 
+def _fetch_asr_by_origin(
+    *,
+    year: int,
+    coo_iso3: str,
+) -> list[dict]:
+    """Population rows for one origin, broken down by every asylum country."""
+    coo = str(coo_iso3 or "").strip().upper()
+    if not coo:
+        return []
+    items: list[dict] = []
+    page = 1
+    while True:
+        resp = requests.get(
+            ASR_API_URL,
+            params={
+                "yearFrom": year,
+                "yearTo": year,
+                "coo": coo,
+                "coa_all": "true",
+                "cf_type": "ISO",
+                "limit": 1000,
+                "page": page,
+            },
+            timeout=90,
+        )
+        resp.raise_for_status()
+        payload = resp.json()
+        batch = payload.get("items") or []
+        items.extend(batch)
+        max_pages = int(payload.get("maxPages") or 1)
+        if page >= max_pages or not batch:
+            break
+        page += 1
+    return items
+
+
+@st.cache_data(show_spinner=False, ttl=24 * 3600)
+def latest_asr_year() -> int:
+    """Most recent Refugee Data Finder end-year with published population rows."""
+    now = datetime.now(timezone.utc).year
+    fallback = max(ASR_YEAR_FROM, now - 1)
+    years: list[int] = []
+    try:
+        resp = requests.get(
+            "https://api.unhcr.org/population/v1/years/",
+            params={"limit": 300, "page": 1},
+            timeout=60,
+        )
+        resp.raise_for_status()
+        items = resp.json().get("items") or []
+        years = sorted(
+            {
+                int(it["year"])
+                for it in items
+                if it.get("year") is not None and int(it["year"]) <= now
+            },
+            reverse=True,
+        )
+    except Exception:  # noqa: BLE001
+        years = list(range(fallback, ASR_YEAR_FROM - 1, -1))
+
+    for y in years:
+        try:
+            resp = requests.get(
+                ASR_API_URL,
+                params={
+                    "yearFrom": y,
+                    "yearTo": y,
+                    "cf_type": "ISO",
+                    "limit": 1,
+                    "page": 1,
+                },
+                timeout=60,
+            )
+            resp.raise_for_status()
+            if resp.json().get("items"):
+                return int(y)
+        except Exception:  # noqa: BLE001
+            continue
+    return fallback
+
+
 def _items_to_long(items: list[dict]) -> pd.DataFrame:
     rows: list[dict] = []
     for it in items:
@@ -139,3 +221,113 @@ def load_asr_population(
     except Exception:  # noqa: BLE001
         pass
     return df
+
+
+@st.cache_data(show_spinner=False, ttl=24 * 3600)
+def load_asr_origin_ref_asy(
+    coo_iso3: str,
+    year: int | None = None,
+) -> pd.DataFrame:
+    """
+    Latest (or given) ASR year: REF + ASY stocks from ``coo_iso3`` by host country.
+
+    Uses ``coa_all=true`` so asylum countries are not aggregated away.
+    """
+    empty = pd.DataFrame(
+        columns=[
+            "year",
+            "origin_iso3",
+            "asylum_iso3",
+            "asylum_name_en",
+            "asylum_name_fr",
+            "refugees",
+            "asylum_seekers",
+            "total",
+            "source",
+        ]
+    )
+    coo = str(coo_iso3 or "").strip().upper()
+    if not coo:
+        return empty
+
+    if year is None:
+        year = latest_asr_year()
+
+    # Walk back a few years if the preferred year has no REF/ASY hosts yet
+    years_to_try = [int(year)]
+    if year is not None:
+        for back in range(1, 4):
+            y = int(year) - back
+            if y >= ASR_YEAR_FROM:
+                years_to_try.append(y)
+
+    last_empty = empty
+    for y in years_to_try:
+        disk = CACHE_DIR / f"asr_origin_ref_asy_{coo}_{y}.parquet"
+        if disk.exists():
+            try:
+                cached = pd.read_parquet(disk)
+                if not cached.empty:
+                    return cached
+            except Exception:  # noqa: BLE001
+                pass
+
+        items = _fetch_asr_by_origin(year=int(y), coo_iso3=coo)
+        rows: list[dict] = []
+        for it in items:
+            coa = str(it.get("coa_iso") or "").upper()
+            if not coa or coa == "-":
+                continue
+            if coa == coo:
+                continue
+            ref = _to_number(it.get("refugees"))
+            asy = _to_number(it.get("asylum_seekers"))
+            total = ref + asy
+            if total <= 0:
+                continue
+            name_en = str(it.get("coa_name") or coa)
+            rows.append(
+                {
+                    "year": int(it.get("year") or y),
+                    "origin_iso3": coo,
+                    "asylum_iso3": coa,
+                    "asylum_name_en": name_en,
+                    "asylum_name_fr": name_en,
+                    "refugees": ref,
+                    "asylum_seekers": asy,
+                    "total": total,
+                    "source": "asr",
+                }
+            )
+        if not rows:
+            continue
+
+        df = (
+            pd.DataFrame(rows)
+            .groupby(
+                [
+                    "year",
+                    "origin_iso3",
+                    "asylum_iso3",
+                    "asylum_name_en",
+                    "asylum_name_fr",
+                    "source",
+                ],
+                as_index=False,
+            )
+            .agg(
+                refugees=("refugees", "sum"),
+                asylum_seekers=("asylum_seekers", "sum"),
+                total=("total", "sum"),
+            )
+            .sort_values("total", ascending=False)
+            .reset_index(drop=True)
+        )
+        try:
+            CACHE_DIR.mkdir(parents=True, exist_ok=True)
+            df.to_parquet(disk, index=False)
+        except Exception:  # noqa: BLE001
+            pass
+        return df
+
+    return last_empty
