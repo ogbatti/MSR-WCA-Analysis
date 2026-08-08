@@ -1072,10 +1072,22 @@ def main() -> None:
                     )
                     n_countries = n_in + n_out
                     total_people = float(plotted["total"].sum())
+                    if "in_wca" in plotted.columns:
+                        total_in = float(
+                            plotted.loc[plotted["in_wca"].fillna(False), "total"].sum()
+                        )
+                        total_out = float(
+                            plotted.loc[~plotted["in_wca"].fillna(False), "total"].sum()
+                        )
+                    else:
+                        total_in = 0.0
+                        total_out = total_people
                     year_label = asr_year if asr_year else "—"
                     summary_kwargs = {
                         "year": year_label,
                         "total": _fmt_int(total_people),
+                        "total_in": _fmt_int(total_in),
+                        "total_out": _fmt_int(total_out),
                         "n_countries": n_countries,
                         "n_in": n_in,
                         "n_out": n_out,
