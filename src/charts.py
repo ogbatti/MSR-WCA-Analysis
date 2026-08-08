@@ -1463,6 +1463,7 @@ def _feature_representative_centroid(feature: dict) -> tuple[float, float] | Non
 
 
 # Mainland / capital-area fallbacks when GeoJSON includes overseas territories
+# or omits small countries (simplified Natural Earth extracts often drop Malta).
 _MAINLAND_CENTROIDS: dict[str, tuple[float, float]] = {
     "FRA": (46.60, 2.50),
     "USA": (39.50, -98.35),
@@ -1479,6 +1480,23 @@ _MAINLAND_CENTROIDS: dict[str, tuple[float, float]] = {
     "CHL": (-35.68, -71.54),
     "ECU": (-1.83, -78.18),
     "IDN": (-2.50, 118.00),
+    "MLT": (35.94, 14.38),
+    "LUX": (49.82, 6.13),
+    "CYP": (35.13, 33.43),
+    "ISL": (64.96, -19.02),
+    "AND": (42.55, 1.60),
+    "MCO": (43.74, 7.42),
+    "LIE": (47.17, 9.52),
+    "SMR": (43.94, 12.46),
+    "VAT": (41.90, 12.45),
+    "SGP": (1.35, 103.82),
+    "BHR": (26.07, 50.55),
+    "QAT": (25.35, 51.18),
+    "MDV": (3.20, 73.22),
+    "MUS": (-20.30, 57.58),
+    "SYC": (-4.68, 55.49),
+    "CPV": (15.12, -23.61),
+    "STP": (0.34, 6.73),
 }
 
 
