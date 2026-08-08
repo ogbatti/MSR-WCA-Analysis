@@ -894,13 +894,14 @@ def main() -> None:
         breakdown = country_pop_breakdown(current, lang=lang)
         if wca_iso3:
             breakdown = breakdown[breakdown["asylum_iso3"].isin(wca_iso3)]
-        # Corridors: REF/ASY only (avoid IDP same-country noise)
-        corridor_src = current[current["pop_code"].isin(["REF", "ASY"])]
-        if corridor_src.empty:
-            corridor_src = current
-        flows = corridor_flows(
-            corridor_src, top_n=30, wca_iso3=wca_iso3 or None, extra_external=15
-        )
+        # Corridors: REF/ASY only (avoid IDP same-country noise) — admin only
+        if is_admin:
+            corridor_src = current[current["pop_code"].isin(["REF", "ASY"])]
+            if corridor_src.empty:
+                corridor_src = current
+            flows = corridor_flows(
+                corridor_src, top_n=30, wca_iso3=wca_iso3 or None, extra_external=15
+            )
 
         st.caption(t("composition_map", lang))
         pie_map = hosts_composition_pie_map(
@@ -921,11 +922,12 @@ def main() -> None:
                 key="wca_choropleth",
                 lang=lang,
             )
-        _render_expandable_plotly(
-            corridor_map(flows, lang),
-            key="wca_corridors",
-            lang=lang,
-        )
+        if is_admin:
+            _render_expandable_plotly(
+                corridor_map(flows, lang),
+                key="wca_corridors",
+                lang=lang,
+            )
 
     with tab_map["territory"]:
         profile_options = host_options["asylum_iso3"].tolist()
